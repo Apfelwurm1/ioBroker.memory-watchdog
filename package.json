@@ -17,7 +17,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/Apfelwurm1/ioBroker.memory-watchdog.git"
+    "url": "git+https://github.com/Apfelwurm1/ioBroker.memory-watchdog.git"
   },
   "bugs": {
     "url": "https://github.com/Apfelwurm1/ioBroker.memory-watchdog/issues"
