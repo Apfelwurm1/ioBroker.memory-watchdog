@@ -4,6 +4,7 @@
  * Created with @iobroker/create-adapter v2.6.0
  */
 
+const os = require('os');
 const utils = require('@iobroker/adapter-core');
 
 class MemoryWatchdog extends utils.Adapter {
@@ -24,6 +25,9 @@ class MemoryWatchdog extends utils.Adapter {
         /** @type {Map<string, { startRss: number, startedAt: number, lastRestart: number, highCycles: number, restartsToday: number, currentMem: number, customConfig?: any }>} */
         this.adapterData = new Map();
 
+        /** @type {Array<{ timestamp: string, time: string, adapter: string, baselineMB: number, memoryMB: number, reason: string, restartsToday: number }>} */
+        this.restartHistory = [];
+
         /** @type {NodeJS.Timeout | null} */
         this.checkTimer = null;
 
@@ -32,6 +36,9 @@ class MemoryWatchdog extends utils.Adapter {
 
         /** @type {Map<string, NodeJS.Timeout>} */
         this.learningTimers = new Map();
+
+        /** @type {Map<string, NodeJS.Timeout>} */
+        this.verificationTimers = new Map();
     }
 
     /**
@@ -65,6 +72,10 @@ class MemoryWatchdog extends utils.Adapter {
             this.checkMemory();
         }, intervalMs);
 
+        // Record initial free memory
+        const initialFree = Math.round(os.freemem() / (1024 * 1024));
+        await this.setStateAsync('info.systemFreeMemMB', initialFree, true);
+
         this.log.info(
             `Memory Watchdog initialized. Interval: ${this.config.checkIntervalMin}m, Factor: ${this.config.memoryFactor}x, Max: ${this.config.absoluteMaxMB}MB, Cycles: ${this.config.requiredHighCycles}, Daily budget: ${this.config.maxRestartsPerDay}`,
         );
@@ -94,6 +105,7 @@ class MemoryWatchdog extends utils.Adapter {
             await this.setStateAsync(`adapters.${instanceId}.restartsToday`, 0, true);
         }
         await this.setStateAsync('info.totalRestartsToday', 0, true);
+        await this.updateStatsDatapoint();
     }
 
     /**
@@ -146,6 +158,7 @@ class MemoryWatchdog extends utils.Adapter {
             }
 
             await this.setStateAsync('info.monitoredAdapters', count, true);
+            await this.updateStatsDatapoint();
         } catch (err) {
             this.log.error(`Error scanning active adapters: ${err}`);
         }
@@ -269,12 +282,115 @@ class MemoryWatchdog extends utils.Adapter {
     }
 
     /**
+     * Checks if current time is within configured quiet hours
+     * @returns {boolean}
+     */
+    isQuietHour() {
+        if (!this.config.quietHoursEnabled) return false;
+        const start = this.config.quietHoursStart || '22:00';
+        const end = this.config.quietHoursEnd || '07:00';
+
+        const parseTime = (str) => {
+            const parts = str.split(':').map(Number);
+            return (parts[0] || 0) * 60 + (parts[1] || 0);
+        };
+
+        const now = new Date();
+        const currentMin = now.getHours() * 60 + now.getMinutes();
+        const startMin = parseTime(start);
+        const endMin = parseTime(end);
+
+        if (startMin <= endMin) {
+            return currentMin >= startMin && currentMin < endMin;
+        } else {
+            // Over midnight (e.g. 22:00 -> 07:00)
+            return currentMin >= startMin || currentMin < endMin;
+        }
+    }
+
+    /**
+     * Updates the comprehensive JSON statistics state for Dashboards (VIS, Grafana, Home Assistant)
+     */
+    async updateStatsDatapoint() {
+        try {
+            const stats = [];
+            const requiredCycles = this.config.requiredHighCycles || 2;
+            const maxDaily = this.config.maxRestartsPerDay || 4;
+
+            for (const [instanceId, data] of this.adapterData.entries()) {
+                const custom = this.getCustomRule(instanceId);
+                const effFactor = (custom && custom.customFactor > 0) ? custom.customFactor : (this.config.memoryFactor || 2.5);
+                const effMaxMB = (custom && custom.customMaxMB > 0) ? custom.customMaxMB : (this.config.absoluteMaxMB || 450);
+                const ratio = data.startRss ? parseFloat((data.currentMem / data.startRss).toFixed(2)) : 1.0;
+
+                let status = 'ok';
+                if (data.restartsToday >= maxDaily) {
+                    status = 'limit_reached';
+                } else if (data.highCycles >= requiredCycles) {
+                    status = 'critical';
+                } else if (data.highCycles > 0) {
+                    status = 'warning';
+                }
+
+                stats.push({
+                    instance: instanceId,
+                    baselineMB: data.startRss,
+                    currentMB: data.currentMem,
+                    ratio: ratio,
+                    limitMB: effMaxMB,
+                    factorLimitMB: Math.round(data.startRss * effFactor),
+                    highCycles: data.highCycles || 0,
+                    restartsToday: data.restartsToday || 0,
+                    status: status,
+                    lastRestart: data.lastRestart ? new Date(data.lastRestart).toLocaleTimeString() : '-',
+                });
+            }
+
+            // Sort descending by current memory
+            stats.sort((a, b) => b.currentMB - a.currentMB);
+
+            await this.setStateAsync('info.adapterStats', JSON.stringify(stats), true);
+        } catch (err) {
+            this.log.error(`Error updating info.adapterStats: ${err}`);
+        }
+    }
+
+    /**
      * Executes memory evaluation across all monitored adapters
      */
     async checkMemory() {
         if (!this.config.enabled) return;
 
         this.log.debug('Executing periodic memory check...');
+
+        // Update system free memory state
+        const freeMemMB = Math.round(os.freemem() / (1024 * 1024));
+        await this.setStateAsync('info.systemFreeMemMB', freeMemMB, true);
+
+        // Emergency Free-RAM protection check
+        if (this.config.emergencyFreeRamEnabled && freeMemMB < (this.config.emergencyFreeRamMinMB || 150)) {
+            this.log.warn(`🚨 EMERGENCY: Free system RAM is dangerously low (${freeMemMB} MB < ${this.config.emergencyFreeRamMinMB || 150} MB)! Evaluating highest memory consumer...`);
+
+            let topInstance = null;
+            let topMemory = 0;
+
+            for (const [instId, data] of this.adapterData.entries()) {
+                const custom = this.getCustomRule(instId);
+                if (custom && custom.active === false) continue;
+
+                if (data.currentMem > topMemory) {
+                    topMemory = data.currentMem;
+                    topInstance = instId;
+                }
+            }
+
+            if (topInstance && topMemory > 100) {
+                const emergencyReason = `System Free-RAM Emergency: Host RAM at ${freeMemMB} MB (< ${this.config.emergencyFreeRamMinMB || 150} MB). Restarted largest adapter [${topInstance}] (${topMemory} MB) to prevent OS crash.`;
+                this.log.error(emergencyReason);
+                await this.restartAdapter(topInstance, emergencyReason, this.adapterData.get(topInstance), true);
+            }
+        }
+
         const aliveStates = await this.getForeignStatesAsync('system.adapter.*.*.alive');
         if (!aliveStates) return;
 
@@ -377,6 +493,8 @@ class MemoryWatchdog extends utils.Adapter {
                 await this.restartAdapter(instanceId, triggerReason, data);
             }
         }
+
+        await this.updateStatsDatapoint();
     }
 
     /**
@@ -384,8 +502,9 @@ class MemoryWatchdog extends utils.Adapter {
      * @param {string} instanceId
      * @param {string} reason
      * @param {any} data
+     * @param {boolean} [isEmergency=false]
      */
-    async restartAdapter(instanceId, reason, data) {
+    async restartAdapter(instanceId, reason, data, isEmergency = false) {
         data.lastRestart = Date.now();
         data.restartsToday = (data.restartsToday || 0) + 1;
         data.highCycles = 0;
@@ -403,6 +522,22 @@ class MemoryWatchdog extends utils.Adapter {
 
         await this.setStateAsync('info.lastAction', `Restarted ${instanceId} (${reason})`, true);
         await this.setStateAsync('info.lastActionTime', new Date().toISOString(), true);
+        await this.setStateAsync('info.lastRestarted', `${instanceId} (${timeStr} - ${reason})`, true);
+
+        // Record history entry
+        this.restartHistory.unshift({
+            timestamp: new Date().toISOString(),
+            time: timeStr,
+            adapter: instanceId,
+            baselineMB: data.startRss,
+            memoryMB: data.currentMem,
+            reason: reason,
+            restartsToday: restartCountToday,
+        });
+        if (this.restartHistory.length > 20) {
+            this.restartHistory = this.restartHistory.slice(0, 20);
+        }
+        await this.setStateAsync('info.restartHistory', JSON.stringify(this.restartHistory), true);
 
         // Update total restarts today
         const totalState = await this.getStateAsync('info.totalRestartsToday');
@@ -410,12 +545,13 @@ class MemoryWatchdog extends utils.Adapter {
         await this.setStateAsync('info.totalRestartsToday', total, true);
 
         // Notify user if enabled
-        if (this.config.notifyOnRestart) {
-            await this.sendNotification(`Memory Watchdog restarted [${instanceId}]: ${reason}`);
+        if (this.config.notifyOnRestart || isEmergency) {
+            await this.sendNotification(`Memory Watchdog restarted [${instanceId}]: ${reason}`, isEmergency);
         }
 
         // Perform clean disable -> wait -> enable
         const pauseMs = (this.config.restartPauseSec || 4) * 1000;
+        const verifySec = this.config.restartVerificationSec || 45;
         const adapterObjId = `system.adapter.${instanceId}`;
 
         try {
@@ -424,6 +560,27 @@ class MemoryWatchdog extends utils.Adapter {
                 await this.extendForeignObjectAsync(adapterObjId, { common: { enabled: true } });
                 this.log.info(`[${instanceId}] Cleanly restarted.`);
                 await this.setStateAsync(`adapters.${instanceId}.status`, 'ok', true);
+                await this.updateStatsDatapoint();
+
+                // Verification check: ensure process actually comes back alive
+                if (this.verificationTimers.has(instanceId)) {
+                    this.clearTimeout(this.verificationTimers.get(instanceId));
+                }
+
+                const vTimer = this.setTimeout(async () => {
+                    this.verificationTimers.delete(instanceId);
+                    const aliveState = await this.getForeignStateAsync(`system.adapter.${instanceId}.alive`);
+                    if (!aliveState || !aliveState.val) {
+                        const errMsg = `Restart verification FAILED for [${instanceId}]: Adapter is still offline after ${verifySec}s!`;
+                        this.log.error(errMsg);
+                        await this.setStateAsync(`adapters.${instanceId}.status`, 'failed_restart', true);
+                        await this.sendNotification(`⚠️ ${errMsg}`, true);
+                    } else {
+                        this.log.debug(`[${instanceId}] Restart verified successfully. Adapter is alive.`);
+                    }
+                }, verifySec * 1000);
+
+                this.verificationTimers.set(instanceId, vTimer);
             }, pauseMs);
         } catch (err) {
             this.log.error(`Failed to restart [${instanceId}]: ${err}`);
@@ -433,8 +590,9 @@ class MemoryWatchdog extends utils.Adapter {
     /**
      * Send notification via configured notification service or custom state
      * @param {string} message
+     * @param {boolean} [isEmergency=false]
      */
-    async sendNotification(message) {
+    async sendNotification(message, isEmergency = false) {
         try {
             if (this.config.notifyCustomState) {
                 await this.setForeignStateAsync(this.config.notifyCustomState, message);
@@ -444,24 +602,31 @@ class MemoryWatchdog extends utils.Adapter {
             const instance = this.config.notifyInstance;
             if (!instance) return;
 
+            // Check quiet hours (emergencies always bypass quiet hours)
+            if (this.config.quietHoursEnabled && !isEmergency && this.isQuietHour()) {
+                this.log.info(`[Quiet Hours] Notification muted (${this.config.quietHoursStart} - ${this.config.quietHoursEnd}): ${message}`);
+                return;
+            }
+
+            const priority = isEmergency ? 1 : 0;
             switch (this.config.notifyService) {
                 case 'pushover':
                     this.sendTo(instance, 'send', {
                         message: message,
-                        title: 'ioBroker Memory Watchdog',
-                        priority: 0,
+                        title: isEmergency ? '🚨 ioBroker Emergency Memory Watchdog' : 'ioBroker Memory Watchdog',
+                        priority: priority,
                     });
                     break;
                 case 'telegram':
                     this.sendTo(instance, 'send', {
-                        text: `*ioBroker Memory Watchdog*\n${message}`,
+                        text: `${isEmergency ? '🚨 *EMERGENCY* ' : ''}*ioBroker Memory Watchdog*\n${message}`,
                         parse_mode: 'Markdown',
                     });
                     break;
                 case 'email':
                     this.sendTo(instance, 'send', {
                         text: message,
-                        subject: 'ioBroker Memory Watchdog Alert',
+                        subject: isEmergency ? '🚨 ioBroker Emergency Memory Alert' : 'ioBroker Memory Watchdog Alert',
                     });
                     break;
             }
@@ -518,6 +683,7 @@ class MemoryWatchdog extends utils.Adapter {
                     await this.setStateAsync(`adapters.${instanceId}.highCycles`, 0, true);
                     await this.setStateAsync(`adapters.${instanceId}.status`, 'ok', true);
                     this.log.info(`[${instanceId}] Learned fresh baseline memory after start: ${mem} MB`);
+                    await this.updateStatsDatapoint();
                 }
             }, delayMs);
 
@@ -567,6 +733,10 @@ class MemoryWatchdog extends utils.Adapter {
                 this.clearTimeout(timer);
             }
             this.learningTimers.clear();
+            for (const timer of this.verificationTimers.values()) {
+                this.clearTimeout(timer);
+            }
+            this.verificationTimers.clear();
             this.setState('info.connection', false, true);
             this.log.info('Cleaned up everything. Memory Watchdog stopped.');
             callback();

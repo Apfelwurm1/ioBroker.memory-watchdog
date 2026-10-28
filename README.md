@@ -24,7 +24,10 @@ In larger ioBroker installations running dozens of adapter instances, Node.js me
 3. **Sustained Load Filter (Duration)**: Only triggers when memory is elevated for multiple consecutive check cycles (e.g. 20-30 minutes), preventing false alarms from short temporary spikes (rendering maps, chart queries).
 4. **Daily Restart Budget (Cloud Protection)**: Restricts restarts to a configurable maximum (e.g. 4 times per 24h) to avoid cloud API lockout (Rate Limits from Alexa, Tuya, Roborock, etc.).
 5. **Targeted Surgical Restart**: Only the leaking adapter is restarted in ~4 seconds. The rest of ioBroker, Home Assistant, Zigbee, and MQTT remain 100% online.
-6. **Built-in Notifications**: Directly alerts you via Pushover, Telegram, E-Mail, or custom state when an action is taken.
+6. **Built-in Notifications & Quiet Hours**: Directly alerts you via Pushover, Telegram, E-Mail, or custom state. Includes configurable Quiet Hours (e.g. 22:00-07:00) to mute smartphone alerts during the night while keeping protection fully active.
+7. **System Free-RAM Emergency Protection**: Monitors container/host free memory (`info.systemFreeMemMB`) and automatically restarts the largest consumer before a fatal Linux Kernel OOM crash occurs.
+8. **Restart Verification (Stalled Process Detection)**: Validates that an adapter came back online cleanly within 45s after a restart, alerting immediately if a process is frozen or hung.
+9. **Dashboard JSON Statistics & Leak History**: Provides `info.adapterStats` (formatted JSON array for VIS-2, Grafana, and Home Assistant) and `info.restartHistory` (log of recent restarts with baseline, peak memory, and trigger reasons).
 
 ---
 
@@ -77,7 +80,10 @@ In größeren ioBroker-Installationen mit vielen Adaptern führen schleichende S
 3. **Dauer-Filter (Last vs. Leck)**: Verhindert Fehlalarme bei kurzen Lastspitzen (wie Staubsaugerkarten berechnen oder Grafana-Abfragen). Erst wenn der Speicher über z. B. 20–30 Minuten dauerhaft zu hoch bleibt, greift der Wächter ein.
 4. **Tages-Budget (Schutz vor Cloud-Sperren)**: Begrenzt die Neustarts auf max. 4 pro Tag und Adapter, um Kontensperren bei Cloud-Diensten (Alexa, Tuya etc.) zuverlässig zu verhindern.
 5. **Chirurgischer Einzel-Neustart**: Es wird **nur der betroffene Adapter** in ca. 4 Sekunden neu gestartet. Alle anderen Adapter und Verbindungen bleiben ununterbrochen online!
-6. **Integrierte Benachrichtigungen**: Sendet auf Wunsch sofort eine Nachricht via Pushover, Telegram, E-Mail oder Datenpunkt.
+6. **Integrierte Benachrichtigungen & Ruhezeiten**: Sendet auf Wunsch sofort eine Nachricht via Pushover, Telegram, E-Mail oder Datenpunkt. Einstellbare Ruhezeiten (z. B. 22:00–07:00 Uhr) verhindern störende Smartphone-Pushes mitten in der Nacht.
+7. **Notfall-Schutz bei akutem RAM-Mangel**: Überwacht den freien Containerspeicher (`info.systemFreeMemMB`) und startet bei Unterschreiten der Notgrenze (z. B. < 150 MB) den größten Speicherfresser neu, bevor der Linux OOM-Killer zuschlägt.
+8. **Neustart-Erfolgsprüfung (Hänger-Erkennung)**: Prüft 45 Sekunden nach einem Neustart, ob der Adapter wirklich wieder online ist, und warnt bei Deadlocks oder Hängern.
+9. **Dashboard-JSON & Leak-Report**: Stellt formatierte JSON-Objekte (`info.adapterStats` und `info.restartHistory`) für VIS-2, Home Assistant oder Grafana bereit.
 
 ---
 
@@ -90,6 +96,10 @@ In größeren ioBroker-Installationen mit vielen Adaptern führen schleichende S
 * Modern Admin JSON-Config with per-adapter override table
 * Full multi-language support (11 languages)
 * Notification dispatching via Pushover, Telegram, E-Mail
+* Quiet hours night mode for muted alerts
+* System emergency free-RAM protection against OOM crashes
+* Stalled process restart verification
+* Dashboard JSON statistics and leak history log
 
 ---
 

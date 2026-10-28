@@ -99,6 +99,12 @@
     "maxRestartsPerDay": 4,
     "restartCooldownMin": 60,
     "restartPauseSec": 4,
+    "restartVerificationSec": 45,
+    "emergencyFreeRamEnabled": true,
+    "emergencyFreeRamMinMB": 150,
+    "quietHoursEnabled": false,
+    "quietHoursStart": "22:00",
+    "quietHoursEnd": "07:00",
     "customRules": [
       {
         "adapter": "admin.0",
@@ -185,6 +191,59 @@
         "read": true,
         "write": false,
         "def": ""
+      },
+      "native": {}
+    },
+    {
+      "_id": "info.lastRestarted",
+      "type": "state",
+      "common": {
+        "role": "text",
+        "name": "Details of last restarted adapter",
+        "type": "string",
+        "read": true,
+        "write": false,
+        "def": ""
+      },
+      "native": {}
+    },
+    {
+      "_id": "info.adapterStats",
+      "type": "state",
+      "common": {
+        "role": "json",
+        "name": "Adapter memory and watchdog statistics for dashboards",
+        "type": "string",
+        "read": true,
+        "write": false,
+        "def": "[]"
+      },
+      "native": {}
+    },
+    {
+      "_id": "info.systemFreeMemMB",
+      "type": "state",
+      "common": {
+        "role": "value",
+        "name": "Current free system memory (MB)",
+        "type": "number",
+        "unit": "MB",
+        "read": true,
+        "write": false,
+        "def": 0
+      },
+      "native": {}
+    },
+    {
+      "_id": "info.restartHistory",
+      "type": "state",
+      "common": {
+        "role": "json",
+        "name": "Recent restart history log",
+        "type": "string",
+        "read": true,
+        "write": false,
+        "def": "[]"
       },
       "native": {}
     }

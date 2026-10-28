@@ -175,6 +175,62 @@
               "step": 5,
               "sm": 12,
               "md": 4
+            },
+            "restartVerificationSec": {
+              "type": "number",
+              "label": {
+                "en": "Restart Verification Check (Seconds)",
+                "de": "Neustart-Prüfung / Hänger-Erkennung (Sekunden)"
+              },
+              "help": {
+                "en": "Checks after restart if adapter is successfully online. Warns if adapter is stalled/offline.",
+                "de": "Prüft nach dem Neustart, ob der Adapter wirklich wieder online ist. Meldet Hänger sofort."
+              },
+              "min": 15,
+              "max": 180,
+              "step": 5,
+              "sm": 12,
+              "md": 4
+            },
+            "dividerEmergency": {
+              "type": "divider"
+            },
+            "headerEmergency": {
+              "type": "header",
+              "text": {
+                "en": "System OOM Emergency Protection (Free-RAM)",
+                "de": "System-Notfall-Schutz bei akutem RAM-Mangel"
+              }
+            },
+            "emergencyFreeRamEnabled": {
+              "type": "checkbox",
+              "label": {
+                "en": "Enable System Emergency RAM Protection",
+                "de": "Notfall-Schutz für freien Gesamtspeicher aktivieren"
+              },
+              "help": {
+                "en": "If free host/container RAM drops below threshold, automatically restarts the largest consumer to prevent kernel OOM crashes.",
+                "de": "Fällt der freie RAM des Containers unter das Limit, wird sofort der größte Verbraucher neu gestartet, um Systemabstürze zu verhindern."
+              },
+              "sm": 12,
+              "md": 6
+            },
+            "emergencyFreeRamMinMB": {
+              "type": "number",
+              "label": {
+                "en": "Emergency Minimum Free RAM (MB)",
+                "de": "Notfall-Grenze freier RAM (MB)"
+              },
+              "help": {
+                "en": "Trigger emergency restart if free RAM is less than this value (e.g. 150 MB)",
+                "de": "Notfall-Neustart auslösen, wenn der freie RAM unter diesen Wert sinkt (z.B. 150 MB)"
+              },
+              "hidden": "!data.emergencyFreeRamEnabled",
+              "min": 50,
+              "max": 4000,
+              "step": 25,
+              "sm": 12,
+              "md": 6
             }
           }
         },
@@ -351,6 +407,57 @@
               },
               "sm": 12,
               "md": 4
+            },
+            "dividerQuiet": {
+              "type": "divider"
+            },
+            "headerQuiet": {
+              "type": "header",
+              "text": {
+                "en": "Quiet Hours / Night Mode",
+                "de": "Ruhezeiten / Nachtmodus"
+              }
+            },
+            "quietHoursEnabled": {
+              "type": "checkbox",
+              "label": {
+                "en": "Enable Quiet Hours (Suppress Push Alerts at Night)",
+                "de": "Ruhezeiten aktivieren (Push-Nachrichten nachts stummschalten)"
+              },
+              "help": {
+                "en": "Restarts will still be performed safely, but external push notifications will be muted during this time window",
+                "de": "Neustarts werden weiterhin sicher ausgeführt, aber externe Push-Meldungen im gewählten Zeitfenster stummgeschaltet"
+              },
+              "sm": 12,
+              "md": 12
+            },
+            "quietHoursStart": {
+              "type": "text",
+              "label": {
+                "en": "Quiet Hours Start (HH:MM)",
+                "de": "Beginn Ruhezeit (HH:MM)"
+              },
+              "help": {
+                "en": "e.g. 22:00",
+                "de": "z.B. 22:00"
+              },
+              "hidden": "!data.quietHoursEnabled",
+              "sm": 12,
+              "md": 6
+            },
+            "quietHoursEnd": {
+              "type": "text",
+              "label": {
+                "en": "Quiet Hours End (HH:MM)",
+                "de": "Ende Ruhezeit (HH:MM)"
+              },
+              "help": {
+                "en": "e.g. 07:00",
+                "de": "z.B. 07:00"
+              },
+              "hidden": "!data.quietHoursEnabled",
+              "sm": 12,
+              "md": 6
             }
           }
         }
