@@ -1,8 +1,21 @@
 {
   "common": {
     "name": "memory-watchdog",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "news": {
+      "0.1.1": {
+        "en": "Fix event-rate calculation, baseline learning on cold start, credential sanitization in process checks and robust restart handling",
+        "de": "Korrektur der Event-Raten-Berechnung, Baseline-Lernen nur bei Kaltstart, Passwort-Maskierung bei Prozess-Scans und abgesicherte Restarts",
+        "ru": "Исправление расчета скорости событий, изучение базового уровня при холодном запуске, очистка учетных данных и надежный перезапуск",
+        "pt": "Correção do cálculo da taxa de eventos, aprendizado de linha de base na inicialização a frio, higienização de credenciais e reinicialização robusta",
+        "nl": "Correctie van berekening van gebeurtenissnelheid, basislijnleren bij koude start, opschonen van inloggegevens en robuuste herstartverwerking",
+        "fr": "Correction du calcul du taux d'événements, apprentissage de la ligne de base au démarrage à froid, assainissement des identifiants et redémarrage robuste",
+        "it": "Correzione del calcolo del tasso di eventi, apprendimento della baseline all'avvio a freddo, sanificazione delle credenziali e riavvio robusto",
+        "es": "Corrección del cálculo de la tasa de eventos, aprendizaje de línea de base en inicio en frío, sanitización de credenciales y reinicio robusto",
+        "pl": "Korekta obliczania wskaźnika zdarzeń, uczenie się linii bazowej przy zimnym starcie, sanityzacja poświadczeń i solidne restartowanie",
+        "uk": "Виправлення розрахунку частоти подій, навчання базової лінії під час холодного запуску, очищення облікових даних та надійний перезапуск",
+        "zh-cn": "修复事件速率计算、冷启动基准学习、凭据清理和稳健的重启处理"
+      },
       "0.1.0": {
         "en": "Initial public release of Smart Memory Watchdog",
         "de": "Erste Veröffentlichung des Smart Memory Watchdog",
@@ -70,9 +83,11 @@
     "loglevel": "info",
     "mode": "daemon",
     "type": "utility",
+    "tier": 1,
     "compact": true,
+    "messagebox": true,
     "connectionType": "local",
-    "dataSource": "push",
+    "dataSource": "poll",
     "adminUI": {
       "config": "json"
     },

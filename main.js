@@ -7,8 +7,17 @@
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
-const { exec } = require('child_process');
+const { execFile } = require('child_process');
 const utils = require('@iobroker/adapter-core');
+
+/**
+ * Escapes characters for Telegram Markdown format
+ * @param {string} text
+ * @returns {string}
+ */
+function escapeTelegramMarkdown(text) {
+    return text.replace(/[_*[\]()~`>#+\-=|{}.!\\]/g, '\\$&');
+}
 
 class MemoryWatchdog extends utils.Adapter {
     /**
@@ -48,6 +57,15 @@ class MemoryWatchdog extends utils.Adapter {
 
         /** @type {Map<string, NodeJS.Timeout>} */
         this.verificationTimers = new Map();
+
+        /** @type {Map<string, boolean>} Tracks alive state transitions (false -> true) */
+        this.aliveCache = new Map();
+
+        /** @type {Set<string>} Prevents concurrent overlapping restarts for the same instance */
+        this.restarting = new Set();
+
+        /** @type {number} Statistics interval in ms from system.config (default 15000) */
+        this.statisticsInterval = 15000;
     }
 
     /**
@@ -64,31 +82,91 @@ class MemoryWatchdog extends utils.Adapter {
             return;
         }
 
+        // Read system.config to get precise controller statistics interval
+        try {
+            const sysConfig = await this.getForeignObjectAsync('system.config');
+            if (sysConfig && sysConfig.common && typeof sysConfig.common.statisticsInterval === 'number') {
+                this.statisticsInterval = Math.max(5000, sysConfig.common.statisticsInterval);
+            }
+            this.log.debug(`Controller statistics interval: ${this.statisticsInterval}ms`);
+        } catch (e) {
+            this.log.debug(`Could not read system.config statisticsInterval, defaulting to 15000ms: ${e}`);
+        }
+
+        // Restore historical state if available
+        await this.restorePersistedState();
+
         // Initialize scheduled midnight reset for daily restart budgets
         this.setupMidnightTimer();
 
-        // Subscribe only to adapter alive states (not memRss, to avoid processing hundreds of events per minute)
+        // Subscribe to adapter alive states to detect restarts
         this.subscribeForeignStates('system.adapter.*.*.alive');
 
-        // Initial scan of active adapters after 30 seconds
+        // Initial scan of active adapters after 10 seconds grace period
         this.setTimeout(() => {
-            this.scanActiveAdapters();
-        }, 30000);
+            this.scanActiveAdapters().catch((err) => this.log.error(`Scan error: ${err}`));
+        }, 10000);
 
         // Periodic memory & system health check
         const intervalMs = Math.max(1, this.config.checkIntervalMin || 15) * 60 * 1000;
         this.checkTimer = this.setInterval(() => {
-            this.checkMemory();
+            this.checkMemory().catch((err) => this.log.error(`Periodic check error: ${err}`));
         }, intervalMs);
 
         // Record initial free memory & storage metrics
-        const initialFree = Math.round(os.freemem() / (1024 * 1024));
+        const initialFree = this.getSystemFreeMemMB();
         await this.setStateAsync('info.systemFreeMemMB', initialFree, true);
         await this.checkStorageHealth();
 
         this.log.info(
             `Memory Watchdog initialized. Interval: ${this.config.checkIntervalMin}m, Factor: ${this.config.memoryFactor}x, Max: ${this.config.absoluteMaxMB}MB, Cycles: ${this.config.requiredHighCycles}, Daily budget: ${this.config.maxRestartsPerDay}`,
         );
+    }
+
+    /**
+     * Restores state from persistent datapoints after a watchdog restart
+     */
+    async restorePersistedState() {
+        try {
+            const histState = await this.getStateAsync('info.restartHistory');
+            if (histState && typeof histState.val === 'string' && histState.val.length > 2) {
+                try {
+                    const parsed = JSON.parse(histState.val);
+                    if (Array.isArray(parsed)) {
+                        this.restartHistory = parsed.slice(0, 20);
+                        this.log.debug(`Restored ${this.restartHistory.length} entries into restart history.`);
+                    }
+                } catch (pe) {
+                    // Ignore parse error
+                }
+            }
+
+            const totalState = await this.getStateAsync('info.totalRestartsToday');
+            if (totalState && typeof totalState.val === 'number') {
+                this.log.debug(`Current total restarts today: ${totalState.val}`);
+            }
+        } catch (err) {
+            this.log.debug(`State restoration notice: ${err}`);
+        }
+    }
+
+    /**
+     * Calculates system available memory in MB (using /proc/meminfo MemAvailable on Linux when available)
+     * @returns {number}
+     */
+    getSystemFreeMemMB() {
+        try {
+            if (process.platform === 'linux' && fs.existsSync('/proc/meminfo')) {
+                const content = fs.readFileSync('/proc/meminfo', 'utf8');
+                const match = content.match(/MemAvailable:\s+(\d+)\s+kB/);
+                if (match && match[1]) {
+                    return Math.round(parseInt(match[1], 10) / 1024);
+                }
+            }
+        } catch (e) {
+            // fallback to os.freemem
+        }
+        return Math.round(os.freemem() / (1024 * 1024));
     }
 
     /**
@@ -100,7 +178,7 @@ class MemoryWatchdog extends utils.Adapter {
         const msUntilMidnight = tomorrow.getTime() - now.getTime();
 
         this.midnightTimer = this.setTimeout(() => {
-            this.resetDailyBudgets();
+            this.resetDailyBudgets().catch((err) => this.log.error(`Reset daily budget error: ${err}`));
             this.setupMidnightTimer();
         }, msUntilMidnight);
     }
@@ -119,6 +197,17 @@ class MemoryWatchdog extends utils.Adapter {
     }
 
     /**
+     * Resolves effective limits (custom rule override or global configuration)
+     * @param {string} instanceId
+     */
+    getLimits(instanceId) {
+        const custom = this.getCustomRule(instanceId);
+        const effectiveFactor = custom && custom.customFactor > 0 ? custom.customFactor : this.config.memoryFactor || 2.5;
+        const effectiveMaxMB = custom && custom.customMaxMB > 0 ? custom.customMaxMB : this.config.absoluteMaxMB || 450;
+        return { custom, effectiveFactor, effectiveMaxMB };
+    }
+
+    /**
      * Scans all currently running adapters in the system
      */
     async scanActiveAdapters() {
@@ -128,14 +217,17 @@ class MemoryWatchdog extends utils.Adapter {
 
             let count = 0;
             for (const [id, state] of Object.entries(states)) {
-                if (!state || !state.val) continue;
-
                 const instanceId = id.replace('system.adapter.', '').replace('.alive', '');
+                const isAlive = Boolean(state && state.val);
+                this.aliveCache.set(instanceId, isAlive);
+
+                if (!isAlive) continue;
+
                 // Do not monitor ourselves or javascript engine directly
                 if (instanceId.startsWith(this.namespace) || instanceId.startsWith('javascript.')) continue;
 
                 // Check custom blacklist
-                const custom = this.getCustomRule(instanceId);
+                const { custom } = this.getLimits(instanceId);
                 if (custom && custom.active === false) {
                     this.log.debug(`[${instanceId}] is blacklisted in custom rules. Skipping.`);
                     continue;
@@ -163,7 +255,7 @@ class MemoryWatchdog extends utils.Adapter {
                         await this.setStateAsync(`adapters.${instanceId}.currentMB`, mem, true);
                         await this.setStateAsync(`adapters.${instanceId}.ratio`, 1.0, true);
                         await this.setStateAsync(`adapters.${instanceId}.status`, 'ok', true);
-                        this.log.info(`[${instanceId}] Learned initial baseline memory: ${mem} MB`);
+                        this.log.info(`[${instanceId}] Initialized baseline memory: ${mem} MB`);
                     }
                 }
             }
@@ -189,98 +281,31 @@ class MemoryWatchdog extends utils.Adapter {
             native: {},
         });
 
-        await this.setObjectNotExistsAsync(`${channelId}.baselineMB`, {
-            type: 'state',
-            common: {
-                name: 'Baseline Startup Memory',
-                type: 'number',
-                unit: 'MB',
-                role: 'value',
-                read: true,
-                write: false,
-                def: 0,
-            },
-            native: {},
-        });
+        const stateDefs = [
+            { id: 'baselineMB', name: 'Baseline Startup Memory', type: 'number', unit: 'MB', role: 'value', def: 0 },
+            { id: 'currentMB', name: 'Current Memory', type: 'number', unit: 'MB', role: 'value', def: 0 },
+            { id: 'ratio', name: 'Current Memory Ratio to Baseline', type: 'number', role: 'value', def: 1.0 },
+            { id: 'highCycles', name: 'Consecutive High Cycles Count', type: 'number', role: 'value', def: 0 },
+            { id: 'restartsToday', name: 'Restarts Triggered Today', type: 'number', role: 'value', def: 0 },
+            { id: 'status', name: 'Status', type: 'string', role: 'text', def: 'ok' },
+            { id: 'lastRestart', name: 'Timestamp of Last Restart', type: 'string', role: 'text', def: '' },
+        ];
 
-        await this.setObjectNotExistsAsync(`${channelId}.currentMB`, {
-            type: 'state',
-            common: {
-                name: 'Current Memory',
-                type: 'number',
-                unit: 'MB',
-                role: 'value',
-                read: true,
-                write: false,
-                def: 0,
-            },
-            native: {},
-        });
-
-        await this.setObjectNotExistsAsync(`${channelId}.ratio`, {
-            type: 'state',
-            common: {
-                name: 'Current Memory Ratio to Baseline',
-                type: 'number',
-                role: 'value',
-                read: true,
-                write: false,
-                def: 1.0,
-            },
-            native: {},
-        });
-
-        await this.setObjectNotExistsAsync(`${channelId}.highCycles`, {
-            type: 'state',
-            common: {
-                name: 'Consecutive High Cycles Count',
-                type: 'number',
-                role: 'value',
-                read: true,
-                write: false,
-                def: 0,
-            },
-            native: {},
-        });
-
-        await this.setObjectNotExistsAsync(`${channelId}.restartsToday`, {
-            type: 'state',
-            common: {
-                name: 'Restarts Triggered Today',
-                type: 'number',
-                role: 'value',
-                read: true,
-                write: false,
-                def: 0,
-            },
-            native: {},
-        });
-
-        await this.setObjectNotExistsAsync(`${channelId}.status`, {
-            type: 'state',
-            common: {
-                name: 'Status',
-                type: 'string',
-                role: 'text',
-                read: true,
-                write: false,
-                def: 'ok',
-            },
-            native: {},
-        });
-
-        await this.setObjectNotExistsAsync(`${channelId}.lastRestart`, {
-            type: 'state',
-            common: {
-                name: 'Timestamp of Last Restart',
-                type: 'string',
-                role: 'date',
-                read: true,
-                write: false,
-                def: '',
-            },
-            native: {},
-        });
+        for (const s of stateDefs) {
+            await this.setObjectNotExistsAsync(`${channelId}.${s.id}`, {
+                type: 'state',
+                common: {
+                    name: s.name,
+                    type: s.type,
+                    unit: s.unit,
+                    role: s.role,
+                    read: true,
+                    write: false,
+                    def: s.def,
+                },
+                native: {},
+            });
+        }
     }
 
     /**
@@ -289,7 +314,9 @@ class MemoryWatchdog extends utils.Adapter {
      */
     getCustomRule(instanceId) {
         if (!this.config.customRules || !Array.isArray(this.config.customRules)) return null;
-        return this.config.customRules.find(r => r.adapter === instanceId || r.adapter === instanceId.split('.')[0]);
+        return this.config.customRules.find(
+            (r) => r.adapter === instanceId || r.adapter === instanceId.split('.')[0],
+        );
     }
 
     /**
@@ -333,7 +360,9 @@ class MemoryWatchdog extends utils.Adapter {
                 const objMB = Math.round(objStat.size / (1024 * 1024));
                 await this.setStateAsync('info.objectsDbSizeMB', objMB, true);
                 if (this.config.dbMonitoringEnabled && objMB >= (this.config.dbSizeWarnThresholdMB || 100)) {
-                    this.log.warn(`[DB Health] objects.jsonl is large (${objMB} MB >= ${this.config.dbSizeWarnThresholdMB || 100} MB). Consider running "iob compress" if growth continues.`);
+                    this.log.warn(
+                        `[DB Health] objects.jsonl is large (${objMB} MB >= ${this.config.dbSizeWarnThresholdMB || 100} MB). Consider running "iob compress" if growth continues.`,
+                    );
                 }
             } catch (e) {
                 // Ignore missing file if running on Redis
@@ -353,7 +382,6 @@ class MemoryWatchdog extends utils.Adapter {
             const logDir = path.join(dataDir, '../log');
             let logFile = path.join(logDir, 'iobroker.current.log');
             if (!fs.existsSync(logFile)) {
-                // Fallback to today's date
                 const today = new Date().toISOString().slice(0, 10);
                 logFile = path.join(logDir, `iobroker.${today}.log`);
             }
@@ -381,7 +409,8 @@ class MemoryWatchdog extends utils.Adapter {
     }
 
     /**
-     * Checks for orphaned processes (PPID 1) such as abandoned go2rtc or ffmpeg instances
+     * Checks for orphaned processes (PPID 1) such as abandoned go2rtc or ffmpeg instances.
+     * Sanitizes arguments to prevent leaking camera RTSP passwords into states/logs.
      * @returns {Promise<{ count: number, processes: any[] }>}
      */
     async checkOrphanProcesses() {
@@ -390,7 +419,7 @@ class MemoryWatchdog extends utils.Adapter {
                 return resolve({ count: 0, processes: [] });
             }
 
-            exec('ps -eo pid,ppid,comm,args --no-headers', (err, stdout) => {
+            execFile('ps', ['-eo', 'pid,ppid,comm,args', '--no-headers'], { timeout: 10000 }, (err, stdout) => {
                 if (err || !stdout) return resolve({ count: 0, processes: [] });
 
                 const orphans = [];
@@ -403,15 +432,22 @@ class MemoryWatchdog extends utils.Adapter {
                     const pid = parseInt(parts[0], 10);
                     const ppid = parseInt(parts[1], 10);
                     const comm = parts[2];
-                    const args = parts.slice(3).join(' ');
+                    const rawArgs = parts.slice(3).join(' ');
 
                     // Check if it is a target binary orphaned to init/systemd (PPID 1 or 0)
-                    if ((ppid === 1 || ppid === 0) && targetBinaries.some(b => comm.includes(b))) {
+                    if ((ppid === 1 || ppid === 0) && targetBinaries.some((b) => comm.includes(b))) {
                         // Exclude legitimate root services and js-controller itself
-                        if (args.includes('iobroker.js-controller') || args.includes('systemd') || args.includes('containerd')) {
+                        if (
+                            rawArgs.includes('iobroker.js-controller') ||
+                            rawArgs.includes('systemd') ||
+                            rawArgs.includes('containerd')
+                        ) {
                             continue;
                         }
-                        orphans.push({ pid, ppid, comm, args: args.slice(0, 120) });
+
+                        // Sanitize URLs containing credentials (e.g. rtsp://user:pass@host -> rtsp://***@host)
+                        const sanitizedArgs = rawArgs.replace(/\/\/[^@/]+@/g, '//***@').slice(0, 120);
+                        orphans.push({ pid, ppid, comm, args: sanitizedArgs });
                     }
                 }
 
@@ -430,9 +466,7 @@ class MemoryWatchdog extends utils.Adapter {
             const maxDaily = this.config.maxRestartsPerDay || 4;
 
             for (const [instanceId, data] of this.adapterData.entries()) {
-                const custom = this.getCustomRule(instanceId);
-                const effFactor = (custom && custom.customFactor > 0) ? custom.customFactor : (this.config.memoryFactor || 2.5);
-                const effMaxMB = (custom && custom.customMaxMB > 0) ? custom.customMaxMB : (this.config.absoluteMaxMB || 450);
+                const { effFactor, effMaxMB } = this.getLimits(instanceId);
                 const ratio = data.startRss ? parseFloat((data.currentMem / data.startRss).toFixed(2)) : 1.0;
 
                 let status = 'ok';
@@ -471,232 +505,310 @@ class MemoryWatchdog extends utils.Adapter {
     }
 
     /**
+     * Validates whether an adapter can safely be restarted right now
+     * @param {string} instanceId
+     * @param {any} data
+     * @param {boolean} [isEmergency=false]
+     * @returns {boolean}
+     */
+    canRestart(instanceId, data, isEmergency = false) {
+        if (this.restarting.has(instanceId)) {
+            return false;
+        }
+
+        const cooldownMs = (this.config.restartCooldownMin || 60) * 60 * 1000;
+        const maxDaily = this.config.maxRestartsPerDay || 4;
+
+        if (isEmergency) {
+            // In emergency mode enforce minimum 15m cooldown to prevent spinning in tight crash loops
+            const emergencyCooldownMs = Math.min(cooldownMs, 15 * 60 * 1000);
+            if (Date.now() - (data.lastRestart || 0) < emergencyCooldownMs) {
+                return false;
+            }
+            return true;
+        }
+
+        if (Date.now() - (data.lastRestart || 0) < cooldownMs) {
+            return false;
+        }
+
+        if ((data.restartsToday || 0) >= maxDaily) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
      * Executes memory evaluation across all monitored adapters
      */
     async checkMemory() {
         if (!this.config.enabled) return;
 
-        this.log.debug('Executing periodic memory check...');
-        const now = Date.now();
-        const deltaSeconds = Math.max(1, Math.round((now - this.lastCheckTimestamp) / 1000));
-        this.lastCheckTimestamp = now;
+        try {
+            this.log.debug('Executing periodic memory check...');
+            const now = Date.now();
+            this.lastCheckTimestamp = now;
 
-        // 1. Update system free memory state
-        const freeMemMB = Math.round(os.freemem() / (1024 * 1024));
-        await this.setStateAsync('info.systemFreeMemMB', freeMemMB, true);
+            // 1. Update system free memory state using MemAvailable
+            const freeMemMB = this.getSystemFreeMemMB();
+            await this.setStateAsync('info.systemFreeMemMB', freeMemMB, true);
 
-        // 2. Storage health check (database sizes & log growth)
-        await this.checkStorageHealth();
+            // 2. Storage health check (database sizes & log growth)
+            await this.checkStorageHealth();
 
-        // 3. Orphaned processes scan
-        const orphanResult = await this.checkOrphanProcesses();
-        await this.setStateAsync('info.orphanedCount', orphanResult.count, true);
-        await this.setStateAsync('info.orphanedProcesses', JSON.stringify(orphanResult.processes), true);
-        if (orphanResult.count > 0) {
-            this.log.warn(`[Process Health] Detected ${orphanResult.count} potentially orphaned process(es): ${JSON.stringify(orphanResult.processes)}`);
-        }
+            // 3. Orphaned processes scan
+            const orphanResult = await this.checkOrphanProcesses();
+            await this.setStateAsync('info.orphanedCount', orphanResult.count, true);
+            await this.setStateAsync('info.orphanedProcesses', JSON.stringify(orphanResult.processes), true);
+            if (orphanResult.count > 0) {
+                this.log.warn(
+                    `[Process Health] Detected ${orphanResult.count} potentially orphaned process(es): ${JSON.stringify(orphanResult.processes)}`,
+                );
+            }
 
-        // 4. Emergency Free-RAM protection check
-        if (this.config.emergencyFreeRamEnabled && freeMemMB < (this.config.emergencyFreeRamMinMB || 150)) {
-            this.log.warn(`🚨 EMERGENCY: Free system RAM is dangerously low (${freeMemMB} MB < ${this.config.emergencyFreeRamMinMB || 150} MB)! Evaluating highest memory consumer...`);
+            // Read live alive states for active verification
+            const aliveStates = await this.getForeignStatesAsync('system.adapter.*.*.alive');
+            if (!aliveStates) return;
 
-            let topInstance = null;
-            let topMemory = 0;
+            // 4. Emergency Free-RAM protection check (Only across currently ALIVE adapters!)
+            if (this.config.emergencyFreeRamEnabled && freeMemMB < (this.config.emergencyFreeRamMinMB || 150)) {
+                this.log.warn(
+                    `🚨 EMERGENCY: Available system RAM is dangerously low (${freeMemMB} MB < ${this.config.emergencyFreeRamMinMB || 150} MB)! Evaluating highest memory consumer...`,
+                );
 
-            for (const [instId, data] of this.adapterData.entries()) {
-                const custom = this.getCustomRule(instId);
+                let topInstance = null;
+                let topMemory = 0;
+
+                for (const [instId, data] of this.adapterData.entries()) {
+                    const isAlive = Boolean(aliveStates[`system.adapter.${instId}.alive`]?.val);
+                    if (!isAlive) continue;
+
+                    const { custom } = this.getLimits(instId);
+                    if (custom && custom.active === false) continue;
+
+                    if (data.currentMem > topMemory && this.canRestart(instId, data, true)) {
+                        topMemory = data.currentMem;
+                        topInstance = instId;
+                    }
+                }
+
+                if (topInstance && topMemory > 100) {
+                    const emergencyReason = `System Free-RAM Emergency: Available RAM at ${freeMemMB} MB (< ${this.config.emergencyFreeRamMinMB || 150} MB). Restarted largest active adapter [${topInstance}] (${topMemory} MB) to prevent OS crash.`;
+                    this.log.error(emergencyReason);
+                    await this.restartAdapter(topInstance, emergencyReason, this.adapterData.get(topInstance), true);
+                }
+            }
+
+            const minCheckAgeMs = (this.config.minCheckAgeMin || 10) * 60 * 1000;
+            const cooldownMs = (this.config.restartCooldownMin || 60) * 60 * 1000;
+            const requiredCycles = this.config.requiredHighCycles || 2;
+            const maxDaily = this.config.maxRestartsPerDay || 4;
+            const floodSuspects = [];
+
+            // Calculate rate divisor based on controller statisticsInterval (default 15s)
+            const statsSec = Math.max(1, (this.statisticsInterval || 15000) / 1000);
+
+            for (const [id, aliveState] of Object.entries(aliveStates)) {
+                const instanceId = id.replace('system.adapter.', '').replace('.alive', '');
+                const isAlive = Boolean(aliveState && aliveState.val);
+                this.aliveCache.set(instanceId, isAlive);
+
+                if (!isAlive) continue;
+                if (instanceId.startsWith(this.namespace) || instanceId.startsWith('javascript.')) continue;
+
+                const { custom, effectiveFactor, effectiveMaxMB } = this.getLimits(instanceId);
                 if (custom && custom.active === false) continue;
 
-                if (data.currentMem > topMemory) {
-                    topMemory = data.currentMem;
-                    topInstance = instId;
-                }
-            }
-
-            if (topInstance && topMemory > 100) {
-                const emergencyReason = `System Free-RAM Emergency: Host RAM at ${freeMemMB} MB (< ${this.config.emergencyFreeRamMinMB || 150} MB). Restarted largest adapter [${topInstance}] (${topMemory} MB) to prevent OS crash.`;
-                this.log.error(emergencyReason);
-                await this.restartAdapter(topInstance, emergencyReason, this.adapterData.get(topInstance), true);
-            }
-        }
-
-        const aliveStates = await this.getForeignStatesAsync('system.adapter.*.*.alive');
-        if (!aliveStates) return;
-
-        const minCheckAgeMs = (this.config.minCheckAgeMin || 10) * 60 * 1000;
-        const cooldownMs = (this.config.restartCooldownMin || 60) * 60 * 1000;
-        const requiredCycles = this.config.requiredHighCycles || 2;
-        const maxDaily = this.config.maxRestartsPerDay || 4;
-        const floodSuspects = [];
-
-        for (const [id, aliveState] of Object.entries(aliveStates)) {
-            if (!aliveState || !aliveState.val) continue;
-
-            const instanceId = id.replace('system.adapter.', '').replace('.alive', '');
-            if (instanceId.startsWith(this.namespace) || instanceId.startsWith('javascript.')) continue;
-
-            const custom = this.getCustomRule(instanceId);
-            if (custom && custom.active === false) continue;
-
-            // --- State-Flooding & Event-Rate Measurement ---
-            const outCountState = await this.getForeignStateAsync(`system.adapter.${instanceId}.outputCount`);
-            if (outCountState && typeof outCountState.val === 'number') {
+                // --- State-Flooding & Event-Rate Measurement ---
+                const outCountState = await this.getForeignStateAsync(`system.adapter.${instanceId}.outputCount`);
                 let data = this.adapterData.get(instanceId);
-                if (data) {
-                    if (data.prevOutputCount !== undefined) {
-                        const countDelta = outCountState.val >= data.prevOutputCount ? (outCountState.val - data.prevOutputCount) : outCountState.val;
-                        const ratePerSec = Math.round(countDelta / deltaSeconds);
-                        data.eventsPerSec = ratePerSec;
 
-                        if (countDelta > 0) {
-                            data.lastOutputTs = now;
-                        }
+                if (outCountState && typeof outCountState.val === 'number' && data) {
+                    // OutputCount in js-controller represents events emitted in the statistics window
+                    const ratePerSec = Math.round(outCountState.val / statsSec);
+                    data.eventsPerSec = ratePerSec;
 
-                        if (this.config.floodDetectionEnabled && ratePerSec >= (this.config.floodThresholdEventsPerSec || 50)) {
-                            floodSuspects.push({ instance: instanceId, eventsPerSec: ratePerSec, threshold: this.config.floodThresholdEventsPerSec || 50 });
-                            const floodMsg = `[State-Flood Alert] [${instanceId}] is emitting ${ratePerSec} events/sec (threshold: ${this.config.floodThresholdEventsPerSec || 50})`;
-                            this.log.warn(floodMsg);
+                    // OutputCount > 1 proves adapter is actively processing events
+                    if (outCountState.val > 1) {
+                        data.lastOutputTs = now;
+                    }
 
-                            if (this.config.floodAction === 'restart') {
-                                await this.restartAdapter(instanceId, `State-Flood protection triggered (${ratePerSec} events/sec)`, data);
-                            }
+                    if (
+                        this.config.floodDetectionEnabled &&
+                        ratePerSec >= (this.config.floodThresholdEventsPerSec || 50)
+                    ) {
+                        floodSuspects.push({
+                            instance: instanceId,
+                            eventsPerSec: ratePerSec,
+                            threshold: this.config.floodThresholdEventsPerSec || 50,
+                        });
+                        const floodMsg = `[State-Flood Alert] [${instanceId}] is emitting ${ratePerSec} events/sec (threshold: ${this.config.floodThresholdEventsPerSec || 50})`;
+                        this.log.warn(floodMsg);
+
+                        if (this.config.floodAction === 'restart' && this.canRestart(instanceId, data, false)) {
+                            await this.restartAdapter(
+                                instanceId,
+                                `State-Flood protection triggered (${ratePerSec} events/sec)`,
+                                data,
+                            );
                         }
                     }
-                    data.prevOutputCount = outCountState.val;
                 }
-            }
 
-            // --- Silent Freeze (Scheintot) Detection ---
-            if (this.config.silentDetectionEnabled) {
-                const maxSilenceMs = (this.config.maxSilenceHours || 3) * 3600 * 1000;
-                const data = this.adapterData.get(instanceId);
-                if (data && data.lastOutputTs && (now - data.lastOutputTs > maxSilenceMs)) {
-                    data.silentFreeze = true;
-                    this.log.warn(`[Silent Freeze] [${instanceId}] has emitted 0 events for over ${(now - data.lastOutputTs) / 3600000} hours despite being alive=true.`);
-                } else if (data) {
-                    data.silentFreeze = false;
+                // --- Silent Freeze (Scheintot) Detection ---
+                if (this.config.silentDetectionEnabled && data) {
+                    const maxSilenceMs = (this.config.maxSilenceHours || 3) * 3600 * 1000;
+                    if (data.lastOutputTs && now - data.lastOutputTs > maxSilenceMs) {
+                        data.silentFreeze = true;
+                        this.log.warn(
+                            `[Silent Freeze] [${instanceId}] has emitted 0 events for over ${Math.round((now - data.lastOutputTs) / 3600000)} hours despite being alive=true.`,
+                        );
+                    } else {
+                        data.silentFreeze = false;
+                    }
                 }
-            }
 
-            // --- Memory Evaluation ---
-            const memState = await this.getForeignStateAsync(`system.adapter.${instanceId}.memRss`);
-            if (!memState || typeof memState.val !== 'number' || memState.val <= 0) continue;
+                // --- Memory Evaluation ---
+                const memState = await this.getForeignStateAsync(`system.adapter.${instanceId}.memRss`);
+                if (!memState || typeof memState.val !== 'number' || memState.val <= 0) continue;
 
-            const currentMem = Math.round(memState.val);
-            let data = this.adapterData.get(instanceId);
+                const currentMem = Math.round(memState.val);
 
-            if (!data) {
-                data = {
-                    startRss: currentMem,
-                    startedAt: Date.now(),
-                    lastRestart: 0,
-                    highCycles: 0,
-                    restartsToday: 0,
-                    currentMem: currentMem,
-                    lastOutputTs: now,
-                    customConfig: custom,
-                };
-                this.adapterData.set(instanceId, data);
-                await this.initAdapterStates(instanceId);
-                await this.setStateAsync(`adapters.${instanceId}.baselineMB`, currentMem, true);
-                continue;
-            }
-
-            data.currentMem = currentMem;
-            const ratio = parseFloat((currentMem / (data.startRss || 1)).toFixed(2));
-            await this.setStateAsync(`adapters.${instanceId}.currentMB`, currentMem, true);
-            await this.setStateAsync(`adapters.${instanceId}.ratio`, ratio, true);
-
-            // Skip check if adapter is still in startup grace period
-            if (Date.now() - data.startedAt < minCheckAgeMs) continue;
-
-            // Evaluate limits (custom overrides take precedence over global settings)
-            const effectiveFactor = (custom && custom.customFactor > 0) ? custom.customFactor : (this.config.memoryFactor || 2.5);
-            const effectiveMaxMB = (custom && custom.customMaxMB > 0) ? custom.customMaxMB : (this.config.absoluteMaxMB || 450);
-            const minRestartMB = this.config.minRestartMB || 250;
-
-            let isExceeded = false;
-            let triggerReason = '';
-
-            if (currentMem >= effectiveMaxMB) {
-                isExceeded = true;
-                triggerReason = `Absolute limit exceeded (${currentMem} MB >= ${effectiveMaxMB} MB)`;
-            } else if (currentMem >= minRestartMB && currentMem >= Math.round(data.startRss * effectiveFactor)) {
-                isExceeded = true;
-                triggerReason = `Factor ${ratio}x reached (Baseline: ${data.startRss} MB -> Current: ${currentMem} MB >= ${Math.round(data.startRss * effectiveFactor)} MB)`;
-            }
-
-            if (isExceeded) {
-                data.highCycles = (data.highCycles || 0) + 1;
-                await this.setStateAsync(`adapters.${instanceId}.highCycles`, data.highCycles, true);
-                await this.setStateAsync(`adapters.${instanceId}.status`, 'warning_high', true);
-
-                this.log.info(
-                    `[${instanceId}] Memory elevated: ${currentMem} MB (Cycle ${data.highCycles}/${requiredCycles}) - ${triggerReason}`,
-                );
-            } else {
-                if (data.highCycles > 0) {
-                    this.log.debug(`[${instanceId}] Memory normalized (${currentMem} MB). Reset high cycle counter.`);
-                    data.highCycles = 0;
-                    await this.setStateAsync(`adapters.${instanceId}.highCycles`, 0, true);
-                    await this.setStateAsync(`adapters.${instanceId}.status`, 'ok', true);
-                }
-            }
-
-            // Trigger restart only when sustained for required cycles
-            if (data.highCycles >= requiredCycles) {
-                if (Date.now() - data.lastRestart < cooldownMs) {
-                    this.log.debug(`[${instanceId}] Restart on cooldown (${Math.round((cooldownMs - (Date.now() - data.lastRestart)) / 60000)}m remaining).`);
+                if (!data) {
+                    data = {
+                        startRss: currentMem,
+                        startedAt: Date.now(),
+                        lastRestart: 0,
+                        highCycles: 0,
+                        restartsToday: 0,
+                        currentMem: currentMem,
+                        lastOutputTs: now,
+                        customConfig: custom,
+                    };
+                    this.adapterData.set(instanceId, data);
+                    await this.initAdapterStates(instanceId);
+                    await this.setStateAsync(`adapters.${instanceId}.baselineMB`, currentMem, true);
                     continue;
                 }
 
-                if (data.restartsToday >= maxDaily) {
-                    await this.setStateAsync(`adapters.${instanceId}.status`, 'limit_reached', true);
-                    const warnMsg = `[${instanceId}] Daily limit of ${maxDaily} restarts reached! Pausing automatic restarts today to prevent API locks.`;
-                    this.log.warn(warnMsg);
+                data.currentMem = currentMem;
+                const ratio = parseFloat((currentMem / (data.startRss || 1)).toFixed(2));
+                await this.setStateAsync(`adapters.${instanceId}.currentMB`, currentMem, true);
+                await this.setStateAsync(`adapters.${instanceId}.ratio`, ratio, true);
 
-                    if (this.config.notifyOnLimitReached) {
-                        await this.sendNotification(warnMsg);
-                    }
-                    continue;
+                // Skip check if adapter is still in startup grace period
+                if (Date.now() - data.startedAt < minCheckAgeMs) continue;
+
+                const minRestartMB = this.config.minRestartMB || 250;
+                let isExceeded = false;
+                let triggerReason = '';
+
+                if (currentMem >= effectiveMaxMB) {
+                    isExceeded = true;
+                    triggerReason = `Absolute limit exceeded (${currentMem} MB >= ${effectiveMaxMB} MB)`;
+                } else if (currentMem >= minRestartMB && currentMem >= Math.round(data.startRss * effectiveFactor)) {
+                    isExceeded = true;
+                    triggerReason = `Factor ${ratio}x reached (Baseline: ${data.startRss} MB -> Current: ${currentMem} MB >= ${Math.round(data.startRss * effectiveFactor)} MB)`;
                 }
 
-                // Execute restart
-                await this.restartAdapter(instanceId, triggerReason, data);
+                if (isExceeded) {
+                    data.highCycles = (data.highCycles || 0) + 1;
+                    await this.setStateAsync(`adapters.${instanceId}.highCycles`, data.highCycles, true);
+                    await this.setStateAsync(`adapters.${instanceId}.status`, 'warning_high', true);
+
+                    this.log.info(
+                        `[${instanceId}] Memory elevated: ${currentMem} MB (Cycle ${data.highCycles}/${requiredCycles}) - ${triggerReason}`,
+                    );
+                } else {
+                    if (data.highCycles > 0) {
+                        this.log.debug(`[${instanceId}] Memory normalized (${currentMem} MB). Reset high cycle counter.`);
+                        data.highCycles = 0;
+                        await this.setStateAsync(`adapters.${instanceId}.highCycles`, 0, true);
+                        await this.setStateAsync(`adapters.${instanceId}.status`, 'ok', true);
+                    }
+                }
+
+                // Trigger restart only when sustained for required cycles
+                if (data.highCycles >= requiredCycles) {
+                    if (Date.now() - data.lastRestart < cooldownMs) {
+                        this.log.debug(
+                            `[${instanceId}] Restart on cooldown (${Math.round((cooldownMs - (Date.now() - data.lastRestart)) / 60000)}m remaining).`,
+                        );
+                        continue;
+                    }
+
+                    if (data.restartsToday >= maxDaily) {
+                        await this.setStateAsync(`adapters.${instanceId}.status`, 'limit_reached', true);
+                        const warnMsg = `[${instanceId}] Daily limit of ${maxDaily} restarts reached! Pausing automatic restarts today to prevent API locks.`;
+                        this.log.warn(warnMsg);
+
+                        if (this.config.notifyOnLimitReached) {
+                            await this.sendNotification(warnMsg);
+                        }
+                        continue;
+                    }
+
+                    // Execute restart safely
+                    if (this.canRestart(instanceId, data, false)) {
+                        await this.restartAdapter(instanceId, triggerReason, data);
+                    }
+                }
             }
+
+            // Update flood suspects state
+            await this.setStateAsync('info.floodSuspects', JSON.stringify(floodSuspects), true);
+
+            // Overall system stability calculation (Safe for Backups)
+            let isSystemStable = true;
+            let stableReason = `System healthy (${freeMemMB} MB available RAM, ${this.adapterData.size} adapters monitored)`;
+
+            if (freeMemMB < (this.config.emergencyFreeRamMinMB || 150)) {
+                isSystemStable = false;
+                stableReason = `Critically low available RAM (${freeMemMB} MB < ${this.config.emergencyFreeRamMinMB || 150} MB)`;
+            } else if (floodSuspects.length > 0) {
+                isSystemStable = false;
+                stableReason = `Active state-flood detected (${floodSuspects.map((s) => `${s.instance}: ${s.eventsPerSec}/s`).join(', ')})`;
+            } else if (orphanResult.count > 0) {
+                stableReason += ` - Note: ${orphanResult.count} orphaned sub-process(es) present`;
+            }
+
+            await this.setStateAsync('info.systemStable', isSystemStable, true);
+            await this.setStateAsync('info.systemStableReason', stableReason, true);
+
+            await this.updateStatsDatapoint();
+        } catch (err) {
+            this.log.error(`Error during memory check execution: ${err}`);
         }
-
-        // Update flood suspects state
-        await this.setStateAsync('info.floodSuspects', JSON.stringify(floodSuspects), true);
-
-        // Overall system stability calculation (Safe for Backups)
-        let isSystemStable = true;
-        let stableReason = `System healthy (${freeMemMB} MB free RAM, ${this.adapterData.size} adapters monitored)`;
-
-        if (freeMemMB < (this.config.emergencyFreeRamMinMB || 150)) {
-            isSystemStable = false;
-            stableReason = `Critically low free RAM (${freeMemMB} MB < ${this.config.emergencyFreeRamMinMB || 150} MB)`;
-        } else if (floodSuspects.length > 0) {
-            isSystemStable = false;
-            stableReason = `Active state-flood detected (${floodSuspects.map(s => `${s.instance}: ${s.eventsPerSec}/s`).join(', ')})`;
-        } else if (orphanResult.count > 0) {
-            stableReason += ` - Note: ${orphanResult.count} orphaned sub-process(es) present`;
-        }
-
-        await this.setStateAsync('info.systemStable', isSystemStable, true);
-        await this.setStateAsync('info.systemStableReason', stableReason, true);
-
-        await this.updateStatsDatapoint();
     }
 
     /**
-     * Executes clean restart of a single adapter instance
+     * Executes clean restart of a single adapter instance with state verification
      * @param {string} instanceId
      * @param {string} reason
      * @param {any} data
      * @param {boolean} [isEmergency=false]
      */
     async restartAdapter(instanceId, reason, data, isEmergency = false) {
+        const adapterObjId = `system.adapter.${instanceId}`;
+
+        // Verify that adapter is currently enabled in ioBroker configuration before touching it!
+        try {
+            const obj = await this.getForeignObjectAsync(adapterObjId);
+            if (!obj || !obj.common || obj.common.enabled === false) {
+                this.log.warn(
+                    `[${instanceId}] Skipping restart because adapter is currently DISABLED in system configuration.`,
+                );
+                return;
+            }
+        } catch (e) {
+            this.log.error(`Could not verify object status for [${instanceId}]: ${e}`);
+            return;
+        }
+
+        // Lock instance against concurrent restarts
+        this.restarting.add(instanceId);
+
         data.lastRestart = Date.now();
         data.restartsToday = (data.restartsToday || 0) + 1;
         data.highCycles = 0;
@@ -742,40 +854,53 @@ class MemoryWatchdog extends utils.Adapter {
         }
 
         // Perform clean disable -> wait -> enable
-        const pauseMs = (this.config.restartPauseSec || 4) * 1000;
+        const pauseMs = Math.max(2, this.config.restartPauseSec || 4) * 1000;
         const verifySec = this.config.restartVerificationSec || 45;
-        const adapterObjId = `system.adapter.${instanceId}`;
 
         try {
             await this.extendForeignObjectAsync(adapterObjId, { common: { enabled: false } });
+
             this.setTimeout(async () => {
-                await this.extendForeignObjectAsync(adapterObjId, { common: { enabled: true } });
-                this.log.info(`[${instanceId}] Cleanly restarted.`);
-                await this.setStateAsync(`adapters.${instanceId}.status`, 'ok', true);
-                await this.updateStatsDatapoint();
+                try {
+                    await this.extendForeignObjectAsync(adapterObjId, { common: { enabled: true } });
+                    this.log.info(`[${instanceId}] Cleanly restarted.`);
+                    await this.setStateAsync(`adapters.${instanceId}.status`, 'ok', true);
+                    await this.updateStatsDatapoint();
 
-                // Verification check: ensure process actually comes back alive
-                if (this.verificationTimers.has(instanceId)) {
-                    this.clearTimeout(this.verificationTimers.get(instanceId));
-                }
-
-                const vTimer = this.setTimeout(async () => {
-                    this.verificationTimers.delete(instanceId);
-                    const aliveState = await this.getForeignStateAsync(`system.adapter.${instanceId}.alive`);
-                    if (!aliveState || !aliveState.val) {
-                        const errMsg = `Restart verification FAILED for [${instanceId}]: Adapter is still offline after ${verifySec}s!`;
-                        this.log.error(errMsg);
-                        await this.setStateAsync(`adapters.${instanceId}.status`, 'failed_restart', true);
-                        await this.sendNotification(`⚠️ ${errMsg}`, true);
-                    } else {
-                        this.log.debug(`[${instanceId}] Restart verified successfully. Adapter is alive.`);
+                    // Verification check: ensure process actually comes back alive
+                    if (this.verificationTimers.has(instanceId)) {
+                        this.clearTimeout(this.verificationTimers.get(instanceId));
                     }
-                }, verifySec * 1000);
 
-                this.verificationTimers.set(instanceId, vTimer);
+                    const vTimer = this.setTimeout(async () => {
+                        try {
+                            this.verificationTimers.delete(instanceId);
+                            const aliveState = await this.getForeignStateAsync(`system.adapter.${instanceId}.alive`);
+                            if (!aliveState || !aliveState.val) {
+                                const errMsg = `Restart verification FAILED for [${instanceId}]: Adapter is still offline after ${verifySec}s!`;
+                                this.log.error(errMsg);
+                                await this.setStateAsync(`adapters.${instanceId}.status`, 'failed_restart', true);
+                                await this.sendNotification(`⚠️ ${errMsg}`, true);
+                            } else {
+                                this.log.debug(`[${instanceId}] Restart verified successfully. Adapter is alive.`);
+                            }
+                        } catch (ve) {
+                            this.log.error(`Error during restart verification: ${ve}`);
+                        }
+                    }, verifySec * 1000);
+
+                    this.verificationTimers.set(instanceId, vTimer);
+                } catch (reEnableErr) {
+                    this.log.error(`Failed to re-enable [${instanceId}]: ${reEnableErr}`);
+                    await this.setStateAsync(`adapters.${instanceId}.status`, 'error', true);
+                } finally {
+                    this.restarting.delete(instanceId);
+                }
             }, pauseMs);
-        } catch (err) {
-            this.log.error(`Failed to restart [${instanceId}]: ${err}`);
+        } catch (disableErr) {
+            this.log.error(`Failed to disable [${instanceId}] for restart: ${disableErr}`);
+            await this.setStateAsync(`adapters.${instanceId}.status`, 'error', true);
+            this.restarting.delete(instanceId);
         }
     }
 
@@ -796,7 +921,9 @@ class MemoryWatchdog extends utils.Adapter {
 
             // Check quiet hours (emergencies always bypass quiet hours)
             if (this.config.quietHoursEnabled && !isEmergency && this.isQuietHour()) {
-                this.log.info(`[Quiet Hours] Notification muted (${this.config.quietHoursStart} - ${this.config.quietHoursEnd}): ${message}`);
+                this.log.info(
+                    `[Quiet Hours] Notification muted (${this.config.quietHoursStart} - ${this.config.quietHoursEnd}): ${message}`,
+                );
                 return;
             }
 
@@ -809,12 +936,14 @@ class MemoryWatchdog extends utils.Adapter {
                         priority: priority,
                     });
                     break;
-                case 'telegram':
+                case 'telegram': {
+                    const escapedMsg = escapeTelegramMarkdown(message);
                     this.sendTo(instance, 'send', {
-                        text: `${isEmergency ? '🚨 *EMERGENCY* ' : ''}*ioBroker Memory Watchdog*\n${message}`,
+                        text: `${isEmergency ? '🚨 *EMERGENCY* ' : ''}*ioBroker Memory Watchdog*\n${escapedMsg}`,
                         parse_mode: 'Markdown',
                     });
                     break;
+                }
                 case 'email':
                     this.sendTo(instance, 'send', {
                         text: message,
@@ -828,69 +957,97 @@ class MemoryWatchdog extends utils.Adapter {
     }
 
     /**
-     * Is called if a subscribed state changes
+     * Is called if a subscribed state changes.
+     * Evaluates alive transitions (false -> true) to trigger baseline learning.
      * @param {string} id
      * @param {ioBroker.State | null | undefined} state
      */
     async onStateChange(id, state) {
         if (!state) return;
 
-        // When an adapter comes back alive, schedule learning delay for new baseline
-        if (id.endsWith('.alive') && state.val === true && state.ack) {
+        if (id.endsWith('.alive')) {
             const instanceId = id.replace('system.adapter.', '').replace('.alive', '');
             if (instanceId.startsWith(this.namespace) || instanceId.startsWith('javascript.')) return;
 
-            const delayMs = Math.max(1, this.config.baselineDelayMin || 5) * 60 * 1000;
+            const isAlive = Boolean(state.val);
+            const prevAlive = this.aliveCache.get(instanceId);
+            this.aliveCache.set(instanceId, isAlive);
 
-            if (this.learningTimers.has(instanceId)) {
-                this.clearTimeout(this.learningTimers.get(instanceId));
-            }
+            // Only trigger baseline learning on genuine cold-starts (offline/false -> online/true)
+            if (isAlive && prevAlive !== true) {
+                const delayMs = Math.max(1, this.config.baselineDelayMin || 5) * 60 * 1000;
 
-            const timer = this.setTimeout(async () => {
-                this.learningTimers.delete(instanceId);
-                const memState = await this.getForeignStateAsync(`system.adapter.${instanceId}.memRss`);
-                if (memState && typeof memState.val === 'number' && memState.val > 0) {
-                    const mem = Math.round(memState.val);
-                    let data = this.adapterData.get(instanceId);
-                    if (!data) {
-                        data = {
-                            startRss: mem,
-                            startedAt: Date.now(),
-                            lastRestart: 0,
-                            highCycles: 0,
-                            restartsToday: 0,
-                            currentMem: mem,
-                            lastOutputTs: Date.now(),
-                        };
-                        this.adapterData.set(instanceId, data);
-                    } else {
-                        data.startRss = mem;
-                        data.startedAt = Date.now();
-                        data.highCycles = 0;
-                        data.lastOutputTs = Date.now();
-                    }
-
-                    await this.initAdapterStates(instanceId);
-                    await this.setStateAsync(`adapters.${instanceId}.baselineMB`, mem, true);
-                    await this.setStateAsync(`adapters.${instanceId}.currentMB`, mem, true);
-                    await this.setStateAsync(`adapters.${instanceId}.ratio`, 1.0, true);
-                    await this.setStateAsync(`adapters.${instanceId}.highCycles`, 0, true);
-                    await this.setStateAsync(`adapters.${instanceId}.status`, 'ok', true);
-                    this.log.info(`[${instanceId}] Learned fresh baseline memory after start: ${mem} MB`);
-                    await this.updateStatsDatapoint();
+                if (this.learningTimers.has(instanceId)) {
+                    this.clearTimeout(this.learningTimers.get(instanceId));
                 }
-            }, delayMs);
 
-            this.learningTimers.set(instanceId, timer);
+                const timer = this.setTimeout(async () => {
+                    try {
+                        this.learningTimers.delete(instanceId);
+                        const memState = await this.getForeignStateAsync(`system.adapter.${instanceId}.memRss`);
+                        if (memState && typeof memState.val === 'number' && memState.val > 0) {
+                            const mem = Math.round(memState.val);
+                            let data = this.adapterData.get(instanceId);
+                            if (!data) {
+                                data = {
+                                    startRss: mem,
+                                    startedAt: Date.now(),
+                                    lastRestart: 0,
+                                    highCycles: 0,
+                                    restartsToday: 0,
+                                    currentMem: mem,
+                                    lastOutputTs: Date.now(),
+                                };
+                                this.adapterData.set(instanceId, data);
+                            } else {
+                                data.startRss = mem;
+                                data.startedAt = Date.now();
+                                data.highCycles = 0;
+                                data.lastOutputTs = Date.now();
+                            }
+
+                            await this.initAdapterStates(instanceId);
+                            await this.setStateAsync(`adapters.${instanceId}.baselineMB`, mem, true);
+                            await this.setStateAsync(`adapters.${instanceId}.currentMB`, mem, true);
+                            await this.setStateAsync(`adapters.${instanceId}.ratio`, 1.0, true);
+                            await this.setStateAsync(`adapters.${instanceId}.highCycles`, 0, true);
+                            await this.setStateAsync(`adapters.${instanceId}.status`, 'ok', true);
+                            this.log.info(`[${instanceId}] Learned fresh baseline memory after cold start: ${mem} MB`);
+                            await this.updateStatsDatapoint();
+                        }
+                    } catch (learnErr) {
+                        this.log.error(`Error learning baseline for [${instanceId}]: ${learnErr}`);
+                    }
+                }, delayMs);
+
+                this.learningTimers.set(instanceId, timer);
+            } else if (!isAlive) {
+                // If adapter went offline, cancel any pending learning timer and update status
+                if (this.learningTimers.has(instanceId)) {
+                    this.clearTimeout(this.learningTimers.get(instanceId));
+                    this.learningTimers.delete(instanceId);
+                }
+                const data = this.adapterData.get(instanceId);
+                if (data) {
+                    data.silentFreeze = false;
+                }
+            }
         }
     }
 
     /**
-     * Some message was sent to this instance over message box. Used by frontends/scripts.
+     * Handles message box calls from scripts, admin UI, or external adapters.
      * @param {ioBroker.Message} obj
      */
     async onMessage(obj) {
-        if (typeof obj === 'object' && obj.message) {
+        if (!obj || typeof obj !== 'object') return;
+
+        if (!obj.message) {
+            if (obj.callback) this.sendTo(obj.from, obj.command, { error: 'Empty message' }, obj.callback);
+            return;
+        }
+
+        try {
             if (obj.command === 'getStats') {
                 const stats = {};
                 for (const [key, val] of this.adapterData.entries()) {
@@ -907,12 +1064,30 @@ class MemoryWatchdog extends utils.Adapter {
             } else if (obj.command === 'restartInstance') {
                 const target = obj.message.instance;
                 if (target && this.adapterData.has(target)) {
-                    await this.restartAdapter(target, 'Manual trigger via message', this.adapterData.get(target));
+                    const data = this.adapterData.get(target);
+                    if (!this.canRestart(target, data, false)) {
+                        if (obj.callback) {
+                            this.sendTo(
+                                obj.from,
+                                obj.command,
+                                { success: false, error: 'Restart on cooldown or daily budget reached' },
+                                obj.callback,
+                            );
+                        }
+                        return;
+                    }
+
+                    await this.restartAdapter(target, 'Manual trigger via message', data);
                     if (obj.callback) this.sendTo(obj.from, obj.command, { success: true }, obj.callback);
                 } else {
-                    if (obj.callback) this.sendTo(obj.from, obj.command, { success: false, error: 'Instance not found' }, obj.callback);
+                    if (obj.callback) {
+                        this.sendTo(obj.from, obj.command, { success: false, error: 'Instance not found' }, obj.callback);
+                    }
                 }
             }
+        } catch (err) {
+            this.log.error(`Error processing message command [${obj.command}]: ${err}`);
+            if (obj.callback) this.sendTo(obj.from, obj.command, { error: String(err) }, obj.callback);
         }
     }
 
@@ -932,6 +1107,7 @@ class MemoryWatchdog extends utils.Adapter {
                 this.clearTimeout(timer);
             }
             this.verificationTimers.clear();
+            this.restarting.clear();
             this.setState('info.connection', false, true);
             this.log.info('Cleaned up everything. Memory Watchdog stopped.');
             callback();

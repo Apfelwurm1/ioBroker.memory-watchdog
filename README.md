@@ -88,6 +88,18 @@ In größeren ioBroker-Installationen mit vielen Adaptern führen schleichende S
 ---
 
 ## Changelog
+### 0.1.1 (2026-10-28)
+* (Apfelwurm1) Fix: Event-rate calculation using `system.config` statisticsInterval window
+* (Apfelwurm1) Fix: Cold-start baseline learning triggering only on actual `false -> true` state transitions
+* (Apfelwurm1) Fix: Prevent reviving manually disabled adapters during emergency RAM recovery
+* (Apfelwurm1) Fix: Bound emergency and flood restarts to restart cooldown and budgets
+* (Apfelwurm1) Fix: Prevent concurrent overlapping restarts using active instance locks
+* (Apfelwurm1) Fix: Add `messagebox: true` and `tier: 1` to `io-package.json` for external script commands
+* (Apfelwurm1) Security: Sanitize camera and RTSP passwords in orphaned process inspection arguments
+* (Apfelwurm1) Robustness: Use `execFile` instead of subshell `exec` for process inspection
+* (Apfelwurm1) Robustness: Proper escaping of Telegram Markdown special characters
+* (Apfelwurm1) Telemetry: Read `/proc/meminfo` MemAvailable on Linux for container-accurate RAM metrics
+
 ### 0.1.0 (2026-10-28)
 * (Apfelwurm1) Initial public release
 * Dynamic baseline learning per adapter instance
