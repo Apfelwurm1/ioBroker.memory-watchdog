@@ -100,6 +100,11 @@ In größeren ioBroker-Installationen mit vielen Adaptern führen schleichende S
 * System emergency free-RAM protection against OOM crashes
 * Stalled process restart verification
 * Dashboard JSON statistics and leak history log
+* State-flooding & event-rate monitoring (prevents bus overload)
+* Silent freeze / unresponsive adapter detection
+* JSONL database size and rapid log file growth alerts
+* Orphaned sub-process detection (abandoned go2rtc/ffmpeg instances)
+* Overall system stability indicator for automated backups (info.systemStable)
 
 ---
 

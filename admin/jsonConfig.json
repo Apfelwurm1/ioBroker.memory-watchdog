@@ -1,465 +1,653 @@
 {
-  "i18n": true,
-  "type": "panel",
+  "i18n": false,
+  "type": "tabs",
   "items": {
-    "mainTabs": {
-      "type": "tabs",
+    "tabGeneral": {
+      "type": "panel",
+      "label": {
+        "en": "General Settings",
+        "de": "Allgemeine Einstellungen"
+      },
       "items": {
-        "tabGeneral": {
-          "type": "panel",
-          "label": {
-            "en": "General Settings",
-            "de": "Allgemeine Einstellungen"
-          },
-          "items": {
-            "headerGlobal": {
-              "type": "header",
-              "text": {
-                "en": "Watchdog Activation & Timing",
-                "de": "Wächter-Aktivierung & Zeitabstände"
-              }
-            },
-            "enabled": {
-              "type": "checkbox",
-              "label": {
-                "en": "Enable Memory Watchdog",
-                "de": "Speicher-Wächter aktiv"
-              },
-              "help": {
-                "en": "Master switch to turn on/off automatic monitoring and restarts",
-                "de": "Hauptschalter für die automatische Überwachung und Neustarts"
-              },
-              "sm": 12,
-              "md": 4
-            },
-            "checkIntervalMin": {
-              "type": "number",
-              "label": {
-                "en": "Check Interval (Minutes)",
-                "de": "Prüfintervall (Minuten)"
-              },
-              "min": 1,
-              "max": 120,
-              "step": 1,
-              "sm": 12,
-              "md": 4
-            },
-            "baselineDelayMin": {
-              "type": "number",
-              "label": {
-                "en": "Learning Delay after Start (Minutes)",
-                "de": "Lern-Verzögerung nach Start (Minuten)"
-              },
-              "help": {
-                "en": "Wait this time after an adapter starts before recording its baseline memory",
-                "de": "Wartezeit nach dem Adapterstart, bevor der Startwert erfasst wird"
-              },
-              "min": 1,
-              "max": 30,
-              "step": 1,
-              "sm": 12,
-              "md": 4
-            },
-            "dividerLimits": {
-              "type": "divider"
-            },
-            "headerLimits": {
-              "type": "header",
-              "text": {
-                "en": "Thresholds & Limits",
-                "de": "Schwellenwerte & Limits"
-              }
-            },
-            "memoryFactor": {
-              "type": "number",
-              "label": {
-                "en": "Memory Factor (Multiplier)",
-                "de": "Speicher-Faktor (Multiplikator)"
-              },
-              "help": {
-                "en": "Trigger threshold relative to baseline (e.g. 2.5 = 250% of startup memory)",
-                "de": "Schwelle relativ zum Startwert (z.B. 2.5 = 250% des Startspeichers)"
-              },
-              "min": 1.2,
-              "max": 10.0,
-              "step": 0.1,
-              "sm": 12,
-              "md": 4
-            },
-            "minRestartMB": {
-              "type": "number",
-              "label": {
-                "en": "Minimum RAM for Factor Trigger (MB)",
-                "de": "Mindest-RAM für Faktorprüfung (MB)"
-              },
-              "help": {
-                "en": "Factor check only triggers if memory is above this threshold (avoids restarting tiny adapters)",
-                "de": "Faktorprüfung greift erst ab dieser Mindestgröße (verhindert Neustart sehr kleiner Adapter)"
-              },
-              "min": 50,
-              "max": 2000,
-              "step": 25,
-              "sm": 12,
-              "md": 4
-            },
-            "absoluteMaxMB": {
-              "type": "number",
-              "label": {
-                "en": "Absolute Hard Limit (MB)",
-                "de": "Absolutes Notfall-Limit (MB)"
-              },
-              "help": {
-                "en": "Adapters exceeding this absolute RAM size are restarted regardless of factor",
-                "de": "Adapter über dieser absoluten Grenze werden unabhängig vom Faktor neu gestartet"
-              },
-              "min": 100,
-              "max": 8000,
-              "step": 50,
-              "sm": 12,
-              "md": 4
-            },
-            "dividerSafety": {
-              "type": "divider"
-            },
-            "headerSafety": {
-              "type": "header",
-              "text": {
-                "en": "Safety Filters & Cloud Protection",
-                "de": "Sicherheits-Filter & Cloud-Schutz"
-              }
-            },
-            "requiredHighCycles": {
-              "type": "number",
-              "label": {
-                "en": "Consecutive High Cycles required",
-                "de": "Dauer-Filter (Zyklen in Folge zu hoch)"
-              },
-              "help": {
-                "en": "Memory must be high for this many checks in a row before restarting (filters out transient spikes)",
-                "de": "Speicher muss so viele Prüfungen hintereinander zu hoch sein (filtert Lastspitzen heraus)"
-              },
-              "min": 1,
-              "max": 10,
-              "step": 1,
-              "sm": 12,
-              "md": 4
-            },
-            "maxRestartsPerDay": {
-              "type": "number",
-              "label": {
-                "en": "Max Restarts per Adapter & Day",
-                "de": "Max. Neustarts pro Adapter & Tag"
-              },
-              "help": {
-                "en": "Protects against restart loops and cloud API rate limits. Resets automatically at 00:00.",
-                "de": "Schützt vor Endlosschleifen und Cloud-Sperren. Setzt sich um Mitternacht zurück."
-              },
-              "min": 1,
-              "max": 24,
-              "step": 1,
-              "sm": 12,
-              "md": 4
-            },
-            "restartCooldownMin": {
-              "type": "number",
-              "label": {
-                "en": "Cooldown between Restarts (Minutes)",
-                "de": "Abkühlpause zwischen Neustarts (Minuten)"
-              },
-              "help": {
-                "en": "Minimum delay before the same adapter can be restarted again",
-                "de": "Mindestabstand, bevor derselbe Adapter erneut neu gestartet werden darf"
-              },
-              "min": 5,
-              "max": 360,
-              "step": 5,
-              "sm": 12,
-              "md": 4
-            },
-            "restartVerificationSec": {
-              "type": "number",
-              "label": {
-                "en": "Restart Verification Check (Seconds)",
-                "de": "Neustart-Prüfung / Hänger-Erkennung (Sekunden)"
-              },
-              "help": {
-                "en": "Checks after restart if adapter is successfully online. Warns if adapter is stalled/offline.",
-                "de": "Prüft nach dem Neustart, ob der Adapter wirklich wieder online ist. Meldet Hänger sofort."
-              },
-              "min": 15,
-              "max": 180,
-              "step": 5,
-              "sm": 12,
-              "md": 4
-            },
-            "dividerEmergency": {
-              "type": "divider"
-            },
-            "headerEmergency": {
-              "type": "header",
-              "text": {
-                "en": "System OOM Emergency Protection (Free-RAM)",
-                "de": "System-Notfall-Schutz bei akutem RAM-Mangel"
-              }
-            },
-            "emergencyFreeRamEnabled": {
-              "type": "checkbox",
-              "label": {
-                "en": "Enable System Emergency RAM Protection",
-                "de": "Notfall-Schutz für freien Gesamtspeicher aktivieren"
-              },
-              "help": {
-                "en": "If free host/container RAM drops below threshold, automatically restarts the largest consumer to prevent kernel OOM crashes.",
-                "de": "Fällt der freie RAM des Containers unter das Limit, wird sofort der größte Verbraucher neu gestartet, um Systemabstürze zu verhindern."
-              },
-              "sm": 12,
-              "md": 6
-            },
-            "emergencyFreeRamMinMB": {
-              "type": "number",
-              "label": {
-                "en": "Emergency Minimum Free RAM (MB)",
-                "de": "Notfall-Grenze freier RAM (MB)"
-              },
-              "help": {
-                "en": "Trigger emergency restart if free RAM is less than this value (e.g. 150 MB)",
-                "de": "Notfall-Neustart auslösen, wenn der freie RAM unter diesen Wert sinkt (z.B. 150 MB)"
-              },
-              "hidden": "!data.emergencyFreeRamEnabled",
-              "min": 50,
-              "max": 4000,
-              "step": 25,
-              "sm": 12,
-              "md": 6
-            }
+        "headerGlobal": {
+          "type": "header",
+          "text": {
+            "en": "Watchdog Activation & Timing",
+            "de": "Wächter-Aktivierung & Zeitabstände"
           }
         },
-        "tabCustomRules": {
-          "type": "panel",
+        "enabled": {
+          "type": "checkbox",
           "label": {
-            "en": "Per-Adapter Overrides & Blacklist",
-            "de": "Adapter-Ausnahmen & Blacklist"
+            "en": "Enable Memory Watchdog",
+            "de": "Speicher-Wächter aktiv"
           },
-          "items": {
-            "headerRules": {
-              "type": "header",
-              "text": {
-                "en": "Individual Adapter Configurations",
-                "de": "Individuelle Adapter-Konfiguration"
-              }
-            },
-            "infoRules": {
-              "type": "staticText",
-              "text": {
-                "en": "Here you can define custom limits for specific memory-heavy adapters, or completely exclude sensitive adapters (e.g. alarm systems) from automatic restarts.",
-                "de": "Hier können für speicherintensive Adapter individuelle Schwellenwerte hinterlegt oder kritische Adapter (z.B. Alarmanlagen) komplett von automatischen Neustarts ausgeschlossen werden."
-              }
-            },
-            "customRules": {
-              "type": "table",
-              "items": [
-                {
-                  "type": "text",
-                  "attr": "adapter",
-                  "title": {
-                    "en": "Adapter Instance (e.g. shelly.0)",
-                    "de": "Adapter-Instanz (z.B. shelly.0)"
-                  },
-                  "width": "25%"
-                },
-                {
-                  "type": "checkbox",
-                  "attr": "active",
-                  "title": {
-                    "en": "Watchdog Active",
-                    "de": "Überwachung aktiv"
-                  },
-                  "width": "15%"
-                },
-                {
-                  "type": "number",
-                  "attr": "customMaxMB",
-                  "title": {
-                    "en": "Custom Max MB (0 = default)",
-                    "de": "Eigenes Limit MB (0 = Standard)"
-                  },
-                  "width": "20%"
-                },
-                {
-                  "type": "number",
-                  "attr": "customFactor",
-                  "title": {
-                    "en": "Custom Factor (0 = default)",
-                    "de": "Eigener Faktor (0 = Standard)"
-                  },
-                  "width": "20%"
-                },
-                {
-                  "type": "text",
-                  "attr": "notes",
-                  "title": {
-                    "en": "Notes",
-                    "de": "Notizen"
-                  },
-                  "width": "20%"
-                }
-              ]
-            }
+          "help": {
+            "en": "Master switch to turn on/off automatic monitoring and restarts",
+            "de": "Hauptschalter für die automatische Überwachung und Neustarts"
+          },
+          "sm": 12,
+          "md": 4
+        },
+        "checkIntervalMin": {
+          "type": "number",
+          "label": {
+            "en": "Check Interval (Minutes)",
+            "de": "Prüfintervall (Minuten)"
+          },
+          "min": 1,
+          "max": 120,
+          "step": 1,
+          "sm": 12,
+          "md": 4
+        },
+        "baselineDelayMin": {
+          "type": "number",
+          "label": {
+            "en": "Learning Delay after Start (Minutes)",
+            "de": "Lern-Verzögerung nach Start (Minuten)"
+          },
+          "help": {
+            "en": "Wait this time after an adapter starts before recording its baseline memory",
+            "de": "Wartezeit nach dem Adapterstart, bevor der Startwert erfasst wird"
+          },
+          "min": 1,
+          "max": 30,
+          "step": 1,
+          "sm": 12,
+          "md": 4
+        },
+        "dividerLimits": {
+          "type": "divider"
+        },
+        "headerLimits": {
+          "type": "header",
+          "text": {
+            "en": "Thresholds & Limits",
+            "de": "Schwellenwerte & Limits"
           }
         },
-        "tabNotifications": {
-          "type": "panel",
+        "memoryFactor": {
+          "type": "number",
           "label": {
-            "en": "Notifications",
-            "de": "Benachrichtigungen"
+            "en": "Memory Factor (Multiplier)",
+            "de": "Speicher-Faktor (Multiplikator)"
           },
-          "items": {
-            "headerNotify": {
-              "type": "header",
-              "text": {
-                "en": "Alerts on Action",
-                "de": "Meldungen bei Eingriffen"
-              }
-            },
-            "notifyOnRestart": {
-              "type": "checkbox",
-              "label": {
-                "en": "Notify on Automatic Adapter Restart",
-                "de": "Nachricht bei automatischem Adapter-Neustart"
-              },
-              "sm": 12,
-              "md": 6
-            },
-            "notifyOnLimitReached": {
-              "type": "checkbox",
-              "label": {
-                "en": "Notify when Daily Limit is reached",
-                "de": "Nachricht bei Erreichen des Tages-Budgets"
-              },
-              "sm": 12,
-              "md": 6
-            },
-            "dividerService": {
-              "type": "divider"
-            },
-            "notifyService": {
-              "type": "select",
-              "label": {
-                "en": "Notification Service",
-                "de": "Benachrichtigungs-Dienst"
-              },
-              "options": [
-                {
-                  "value": "none",
-                  "label": {
-                    "en": "None (Log only)",
-                    "de": "Keiner (nur Log)"
-                  }
-                },
-                {
-                  "value": "pushover",
-                  "label": {
-                    "en": "Pushover",
-                    "de": "Pushover"
-                  }
-                },
-                {
-                  "value": "telegram",
-                  "label": {
-                    "en": "Telegram",
-                    "de": "Telegram"
-                  }
-                },
-                {
-                  "value": "email",
-                  "label": {
-                    "en": "E-Mail",
-                    "de": "E-Mail"
-                  }
-                }
-              ],
-              "sm": 12,
-              "md": 4
-            },
-            "notifyInstance": {
-              "type": "text",
-              "label": {
-                "en": "Service Instance",
-                "de": "Dienst-Instanz"
-              },
-              "help": {
-                "en": "e.g. pushover.0 or telegram.0",
-                "de": "z.B. pushover.0 oder telegram.0"
-              },
-              "hidden": "data.notifyService === 'none'",
-              "sm": 12,
-              "md": 4
-            },
-            "notifyCustomState": {
-              "type": "text",
-              "label": {
-                "en": "Alternative Custom State ID",
-                "de": "Alternativer Datenpunkt für Meldung"
-              },
-              "help": {
-                "en": "Optional: Write alert message into a custom state (e.g. 0_userdata.0.alerts.message)",
-                "de": "Optional: Textmeldung in einen beliebigen Datenpunkt schreiben"
-              },
-              "sm": 12,
-              "md": 4
-            },
-            "dividerQuiet": {
-              "type": "divider"
-            },
-            "headerQuiet": {
-              "type": "header",
-              "text": {
-                "en": "Quiet Hours / Night Mode",
-                "de": "Ruhezeiten / Nachtmodus"
-              }
-            },
-            "quietHoursEnabled": {
-              "type": "checkbox",
-              "label": {
-                "en": "Enable Quiet Hours (Suppress Push Alerts at Night)",
-                "de": "Ruhezeiten aktivieren (Push-Nachrichten nachts stummschalten)"
-              },
-              "help": {
-                "en": "Restarts will still be performed safely, but external push notifications will be muted during this time window",
-                "de": "Neustarts werden weiterhin sicher ausgeführt, aber externe Push-Meldungen im gewählten Zeitfenster stummgeschaltet"
-              },
-              "sm": 12,
-              "md": 12
-            },
-            "quietHoursStart": {
-              "type": "text",
-              "label": {
-                "en": "Quiet Hours Start (HH:MM)",
-                "de": "Beginn Ruhezeit (HH:MM)"
-              },
-              "help": {
-                "en": "e.g. 22:00",
-                "de": "z.B. 22:00"
-              },
-              "hidden": "!data.quietHoursEnabled",
-              "sm": 12,
-              "md": 6
-            },
-            "quietHoursEnd": {
-              "type": "text",
-              "label": {
-                "en": "Quiet Hours End (HH:MM)",
-                "de": "Ende Ruhezeit (HH:MM)"
-              },
-              "help": {
-                "en": "e.g. 07:00",
-                "de": "z.B. 07:00"
-              },
-              "hidden": "!data.quietHoursEnabled",
-              "sm": 12,
-              "md": 6
-            }
+          "help": {
+            "en": "Trigger threshold relative to baseline (e.g. 2.5 = 250% of startup memory)",
+            "de": "Schwelle relativ zum Startwert (z.B. 2.5 = 250% des Startspeichers)"
+          },
+          "min": 1.2,
+          "max": 10,
+          "step": 0.1,
+          "sm": 12,
+          "md": 4
+        },
+        "minRestartMB": {
+          "type": "number",
+          "label": {
+            "en": "Minimum RAM for Factor Trigger (MB)",
+            "de": "Mindest-RAM für Faktorprüfung (MB)"
+          },
+          "help": {
+            "en": "Factor check only triggers if memory is above this threshold (avoids restarting tiny adapters)",
+            "de": "Faktorprüfung greift erst ab dieser Mindestgröße (verhindert Neustart sehr kleiner Adapter)"
+          },
+          "min": 50,
+          "max": 2000,
+          "step": 25,
+          "sm": 12,
+          "md": 4
+        },
+        "absoluteMaxMB": {
+          "type": "number",
+          "label": {
+            "en": "Absolute Hard Limit (MB)",
+            "de": "Absolutes Notfall-Limit (MB)"
+          },
+          "help": {
+            "en": "Adapters exceeding this absolute RAM size are restarted regardless of factor",
+            "de": "Adapter über dieser absoluten Grenze werden unabhängig vom Faktor neu gestartet"
+          },
+          "min": 100,
+          "max": 8000,
+          "step": 50,
+          "sm": 12,
+          "md": 4
+        },
+        "dividerSafety": {
+          "type": "divider"
+        },
+        "headerSafety": {
+          "type": "header",
+          "text": {
+            "en": "Safety Filters & Cloud Protection",
+            "de": "Sicherheits-Filter & Cloud-Schutz"
           }
+        },
+        "requiredHighCycles": {
+          "type": "number",
+          "label": {
+            "en": "Consecutive High Cycles required",
+            "de": "Dauer-Filter (Zyklen in Folge zu hoch)"
+          },
+          "help": {
+            "en": "Memory must be high for this many checks in a row before restarting (filters out transient spikes)",
+            "de": "Speicher muss so viele Prüfungen hintereinander zu hoch sein (filtert Lastspitzen heraus)"
+          },
+          "min": 1,
+          "max": 10,
+          "step": 1,
+          "sm": 12,
+          "md": 4
+        },
+        "maxRestartsPerDay": {
+          "type": "number",
+          "label": {
+            "en": "Max Restarts per Adapter & Day",
+            "de": "Max. Neustarts pro Adapter & Tag"
+          },
+          "help": {
+            "en": "Protects against restart loops and cloud API rate limits. Resets automatically at 00:00.",
+            "de": "Schützt vor Endlosschleifen und Cloud-Sperren. Setzt sich um Mitternacht zurück."
+          },
+          "min": 1,
+          "max": 24,
+          "step": 1,
+          "sm": 12,
+          "md": 4
+        },
+        "restartCooldownMin": {
+          "type": "number",
+          "label": {
+            "en": "Cooldown between Restarts (Minutes)",
+            "de": "Abkühlpause zwischen Neustarts (Minuten)"
+          },
+          "help": {
+            "en": "Minimum delay before the same adapter can be restarted again",
+            "de": "Mindestabstand, bevor derselbe Adapter erneut neu gestartet werden darf"
+          },
+          "min": 5,
+          "max": 360,
+          "step": 5,
+          "sm": 12,
+          "md": 4
+        },
+        "restartVerificationSec": {
+          "type": "number",
+          "label": {
+            "en": "Restart Verification Check (Seconds)",
+            "de": "Neustart-Prüfung / Hänger-Erkennung (Sekunden)"
+          },
+          "help": {
+            "en": "Checks after restart if adapter is successfully online. Warns if adapter is stalled/offline.",
+            "de": "Prüft nach dem Neustart, ob der Adapter wirklich wieder online ist. Meldet Hänger sofort."
+          },
+          "min": 15,
+          "max": 180,
+          "step": 5,
+          "sm": 12,
+          "md": 4
+        },
+        "dividerEmergency": {
+          "type": "divider"
+        },
+        "headerEmergency": {
+          "type": "header",
+          "text": {
+            "en": "System OOM Emergency Protection (Free-RAM)",
+            "de": "System-Notfall-Schutz bei akutem RAM-Mangel"
+          }
+        },
+        "emergencyFreeRamEnabled": {
+          "type": "checkbox",
+          "label": {
+            "en": "Enable System Emergency RAM Protection",
+            "de": "Notfall-Schutz für freien Gesamtspeicher aktivieren"
+          },
+          "help": {
+            "en": "If free host/container RAM drops below threshold, automatically restarts the largest consumer to prevent kernel OOM crashes.",
+            "de": "Fällt der freie RAM des Containers unter das Limit, wird sofort der größte Verbraucher neu gestartet, um Systemabstürze zu verhindern."
+          },
+          "sm": 12,
+          "md": 6
+        },
+        "emergencyFreeRamMinMB": {
+          "type": "number",
+          "label": {
+            "en": "Emergency Minimum Free RAM (MB)",
+            "de": "Notfall-Grenze freier RAM (MB)"
+          },
+          "help": {
+            "en": "Trigger emergency restart if free RAM is less than this value (e.g. 150 MB)",
+            "de": "Notfall-Neustart auslösen, wenn der freie RAM unter diesen Wert sinkt (z.B. 150 MB)"
+          },
+          "hidden": "!data.emergencyFreeRamEnabled",
+          "min": 50,
+          "max": 4000,
+          "step": 25,
+          "sm": 12,
+          "md": 6
+        }
+      }
+    },
+    "tabCustomRules": {
+      "type": "panel",
+      "label": {
+        "en": "Per-Adapter Overrides & Blacklist",
+        "de": "Adapter-Ausnahmen & Blacklist"
+      },
+      "items": {
+        "headerRules": {
+          "type": "header",
+          "text": {
+            "en": "Individual Adapter Configurations",
+            "de": "Individuelle Adapter-Konfiguration"
+          }
+        },
+        "infoRules": {
+          "type": "staticText",
+          "text": {
+            "en": "Here you can define custom limits for specific memory-heavy adapters, or completely exclude sensitive adapters (e.g. alarm systems) from automatic restarts.",
+            "de": "Hier können für speicherintensive Adapter individuelle Schwellenwerte hinterlegt oder kritische Adapter (z.B. Alarmanlagen) komplett von automatischen Neustarts ausgeschlossen werden."
+          }
+        },
+        "customRules": {
+          "type": "table",
+          "items": [
+            {
+              "type": "text",
+              "attr": "adapter",
+              "title": {
+                "en": "Adapter Instance (e.g. shelly.0)",
+                "de": "Adapter-Instanz (z.B. shelly.0)"
+              },
+              "width": "25%"
+            },
+            {
+              "type": "checkbox",
+              "attr": "active",
+              "title": {
+                "en": "Watchdog Active",
+                "de": "Überwachung aktiv"
+              },
+              "width": "15%"
+            },
+            {
+              "type": "number",
+              "attr": "customMaxMB",
+              "title": {
+                "en": "Custom Max MB (0 = default)",
+                "de": "Eigenes Limit MB (0 = Standard)"
+              },
+              "width": "20%"
+            },
+            {
+              "type": "number",
+              "attr": "customFactor",
+              "title": {
+                "en": "Custom Factor (0 = default)",
+                "de": "Eigener Faktor (0 = Standard)"
+              },
+              "width": "20%"
+            },
+            {
+              "type": "text",
+              "attr": "notes",
+              "title": {
+                "en": "Notes",
+                "de": "Notizen"
+              },
+              "width": "20%"
+            }
+          ]
+        }
+      }
+    },
+    "tabNotifications": {
+      "type": "panel",
+      "label": {
+        "en": "Notifications",
+        "de": "Benachrichtigungen"
+      },
+      "items": {
+        "headerNotify": {
+          "type": "header",
+          "text": {
+            "en": "Alerts on Action",
+            "de": "Meldungen bei Eingriffen"
+          }
+        },
+        "notifyOnRestart": {
+          "type": "checkbox",
+          "label": {
+            "en": "Notify on Automatic Adapter Restart",
+            "de": "Nachricht bei automatischem Adapter-Neustart"
+          },
+          "sm": 12,
+          "md": 6
+        },
+        "notifyOnLimitReached": {
+          "type": "checkbox",
+          "label": {
+            "en": "Notify when Daily Limit is reached",
+            "de": "Nachricht bei Erreichen des Tages-Budgets"
+          },
+          "sm": 12,
+          "md": 6
+        },
+        "dividerService": {
+          "type": "divider"
+        },
+        "notifyService": {
+          "type": "select",
+          "label": {
+            "en": "Notification Service",
+            "de": "Benachrichtigungs-Dienst"
+          },
+          "options": [
+            {
+              "value": "none",
+              "label": {
+                "en": "None (Log only)",
+                "de": "Keiner (nur Log)"
+              }
+            },
+            {
+              "value": "pushover",
+              "label": {
+                "en": "Pushover",
+                "de": "Pushover"
+              }
+            },
+            {
+              "value": "telegram",
+              "label": {
+                "en": "Telegram",
+                "de": "Telegram"
+              }
+            },
+            {
+              "value": "email",
+              "label": {
+                "en": "E-Mail",
+                "de": "E-Mail"
+              }
+            }
+          ],
+          "sm": 12,
+          "md": 4
+        },
+        "notifyInstance": {
+          "type": "text",
+          "label": {
+            "en": "Service Instance",
+            "de": "Dienst-Instanz"
+          },
+          "help": {
+            "en": "e.g. pushover.0 or telegram.0",
+            "de": "z.B. pushover.0 oder telegram.0"
+          },
+          "hidden": "data.notifyService === 'none'",
+          "sm": 12,
+          "md": 4
+        },
+        "notifyCustomState": {
+          "type": "text",
+          "label": {
+            "en": "Alternative Custom State ID",
+            "de": "Alternativer Datenpunkt für Meldung"
+          },
+          "help": {
+            "en": "Optional: Write alert message into a custom state (e.g. 0_userdata.0.alerts.message)",
+            "de": "Optional: Textmeldung in einen beliebigen Datenpunkt schreiben"
+          },
+          "sm": 12,
+          "md": 4
+        },
+        "dividerQuiet": {
+          "type": "divider"
+        },
+        "headerQuiet": {
+          "type": "header",
+          "text": {
+            "en": "Quiet Hours / Night Mode",
+            "de": "Ruhezeiten / Nachtmodus"
+          }
+        },
+        "quietHoursEnabled": {
+          "type": "checkbox",
+          "label": {
+            "en": "Enable Quiet Hours (Suppress Push Alerts at Night)",
+            "de": "Ruhezeiten aktivieren (Push-Nachrichten nachts stummschalten)"
+          },
+          "help": {
+            "en": "Restarts will still be performed safely, but external push notifications will be muted during this time window",
+            "de": "Neustarts werden weiterhin sicher ausgeführt, aber externe Push-Meldungen im gewählten Zeitfenster stummgeschaltet"
+          },
+          "sm": 12,
+          "md": 12
+        },
+        "quietHoursStart": {
+          "type": "text",
+          "label": {
+            "en": "Quiet Hours Start (HH:MM)",
+            "de": "Beginn Ruhezeit (HH:MM)"
+          },
+          "help": {
+            "en": "e.g. 22:00",
+            "de": "z.B. 22:00"
+          },
+          "hidden": "!data.quietHoursEnabled",
+          "sm": 12,
+          "md": 6
+        },
+        "quietHoursEnd": {
+          "type": "text",
+          "label": {
+            "en": "Quiet Hours End (HH:MM)",
+            "de": "Ende Ruhezeit (HH:MM)"
+          },
+          "help": {
+            "en": "e.g. 07:00",
+            "de": "z.B. 07:00"
+          },
+          "hidden": "!data.quietHoursEnabled",
+          "sm": 12,
+          "md": 6
+        }
+      }
+    },
+    "tabHealth": {
+      "type": "panel",
+      "label": {
+        "en": "System Health (Flooding, DB, Logs)",
+        "de": "System-Gesundheit (Flooding, DB, Logs)"
+      },
+      "items": {
+        "headerFlooding": {
+          "type": "header",
+          "text": {
+            "en": "State-Flooding & Message-Rate Monitor",
+            "de": "State-Flooding & Bus-Überlastungs-Schutz"
+          }
+        },
+        "floodDetectionEnabled": {
+          "type": "checkbox",
+          "label": {
+            "en": "Enable State-Flood Detection",
+            "de": "State-Flooding-Erkennung aktivieren"
+          },
+          "help": {
+            "en": "Monitors event output rate per adapter to detect runaway loops (e.g. fluttering sensors)",
+            "de": "Überwacht die Event-Rate pro Adapter zur Erkennung von Endlosschleifen und Sensor-Flattern"
+          },
+          "sm": 12,
+          "md": 4
+        },
+        "floodThresholdEventsPerSec": {
+          "type": "number",
+          "label": {
+            "en": "Flood Threshold (Events / Second)",
+            "de": "Schwellenwert (Events / Sekunde)"
+          },
+          "help": {
+            "en": "Rate above which an adapter is flagged as flooding (e.g. 50 events/s)",
+            "de": "Ab dieser Rate gilt ein Adapter als Bus-Fluter (z.B. 50 Events/s)"
+          },
+          "hidden": "!data.floodDetectionEnabled",
+          "min": 10,
+          "max": 1000,
+          "step": 5,
+          "sm": 12,
+          "md": 4
+        },
+        "floodAction": {
+          "type": "select",
+          "label": {
+            "en": "Action on Flood Detection",
+            "de": "Aktion bei Flooding"
+          },
+          "options": [
+            {
+              "value": "warn_only",
+              "label": {
+                "en": "Warning only (Log & State)",
+                "de": "Nur Warnen (Log & Datenpunkt)"
+              }
+            },
+            {
+              "value": "restart",
+              "label": {
+                "en": "Automatic Restart of Fluter",
+                "de": "Automatischer Neustart des Fluters"
+              }
+            }
+          ],
+          "hidden": "!data.floodDetectionEnabled",
+          "sm": 12,
+          "md": 4
+        },
+        "dividerSilent": {
+          "type": "divider"
+        },
+        "headerSilent": {
+          "type": "header",
+          "text": {
+            "en": "Silent Freeze & Unresponsive Adapter Detection",
+            "de": "Scheintot-Erkennung (Eingefrorene Adapter)"
+          }
+        },
+        "silentDetectionEnabled": {
+          "type": "checkbox",
+          "label": {
+            "en": "Enable Silent Freeze Detection",
+            "de": "Scheintot-Erkennung aktivieren"
+          },
+          "help": {
+            "en": "Detects adapters that report alive=true but stopped processing data",
+            "de": "Erkennt Adapter, die alive=true melden, aber keine Daten mehr verarbeiten"
+          },
+          "sm": 12,
+          "md": 6
+        },
+        "maxSilenceHours": {
+          "type": "number",
+          "label": {
+            "en": "Maximum Inactivity Duration (Hours)",
+            "de": "Maximale Inaktivitätsdauer (Stunden)"
+          },
+          "help": {
+            "en": "Flag adapter as unresponsive if no output events occurred within this time",
+            "de": "Adapter als scheintot markieren, wenn so viele Stunden kein Event verarbeitet wurde"
+          },
+          "hidden": "!data.silentDetectionEnabled",
+          "min": 1,
+          "max": 48,
+          "step": 1,
+          "sm": 12,
+          "md": 6
+        },
+        "dividerStorage": {
+          "type": "divider"
+        },
+        "headerStorage": {
+          "type": "header",
+          "text": {
+            "en": "Database (JSONL) & Log-Spam Protection",
+            "de": "Datenbank (JSONL) & Log-Wachstums-Schutz"
+          }
+        },
+        "dbMonitoringEnabled": {
+          "type": "checkbox",
+          "label": {
+            "en": "Monitor objects.jsonl and states.jsonl database sizes",
+            "de": "objects.jsonl & states.jsonl Datenbankgrößen überwachen"
+          },
+          "sm": 12,
+          "md": 6
+        },
+        "dbSizeWarnThresholdMB": {
+          "type": "number",
+          "label": {
+            "en": "Database Warning Threshold (MB)",
+            "de": "Datenbank-Warngrenze (MB)"
+          },
+          "help": {
+            "en": "Warn if objects.jsonl grows beyond this size (indicates need for compression)",
+            "de": "Warnt, wenn objects.jsonl größer wird (zeigt Kompressionsbedarf an)"
+          },
+          "hidden": "!data.dbMonitoringEnabled",
+          "min": 50,
+          "max": 1000,
+          "step": 25,
+          "sm": 12,
+          "md": 6
+        },
+        "logMonitoringEnabled": {
+          "type": "checkbox",
+          "label": {
+            "en": "Monitor Log Growth (SSD Protection)",
+            "de": "Log-Zuwachs überwachen (SSD-Schutz)"
+          },
+          "help": {
+            "en": "Alerts if log file grows rapidly due to runaway error loops",
+            "de": "Warnt bei rasantem Log-Wachstum durch Endlos-Fehlerschleifen"
+          },
+          "sm": 12,
+          "md": 6
+        },
+        "logGrowthWarnMB": {
+          "type": "number",
+          "label": {
+            "en": "Log Growth Warning Threshold (MB / Check)",
+            "de": "Log-Zuwachs-Warngrenze (MB / Prüfintervall)"
+          },
+          "hidden": "!data.logMonitoringEnabled",
+          "min": 5,
+          "max": 200,
+          "step": 5,
+          "sm": 12,
+          "md": 6
+        },
+        "dividerOrphans": {
+          "type": "divider"
+        },
+        "headerOrphans": {
+          "type": "header",
+          "text": {
+            "en": "Orphaned Process Detection",
+            "de": "Verwaiste Kindprozesse (Orphans)"
+          }
+        },
+        "orphanDetectionEnabled": {
+          "type": "checkbox",
+          "label": {
+            "en": "Scan for orphaned processes (e.g. abandoned go2rtc/ffmpeg instances)",
+            "de": "Nach verwaisten Kindprozessen suchen (z.B. hängengebliebene go2rtc/ffmpeg)"
+          },
+          "sm": 12,
+          "md": 12
         }
       }
     }

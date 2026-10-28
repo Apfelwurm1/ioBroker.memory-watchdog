@@ -105,6 +105,16 @@
     "quietHoursEnabled": false,
     "quietHoursStart": "22:00",
     "quietHoursEnd": "07:00",
+    "floodDetectionEnabled": true,
+    "floodThresholdEventsPerSec": 50,
+    "floodAction": "warn_only",
+    "silentDetectionEnabled": false,
+    "maxSilenceHours": 3,
+    "logMonitoringEnabled": true,
+    "logGrowthWarnMB": 25,
+    "dbMonitoringEnabled": true,
+    "dbSizeWarnThresholdMB": 100,
+    "orphanDetectionEnabled": true,
     "customRules": [
       {
         "adapter": "admin.0",
@@ -240,6 +250,127 @@
       "common": {
         "role": "json",
         "name": "Recent restart history log",
+        "type": "string",
+        "read": true,
+        "write": false,
+        "def": "[]"
+      },
+      "native": {}
+    },
+    {
+      "_id": "info.systemStable",
+      "type": "state",
+      "common": {
+        "role": "indicator",
+        "name": "Overall system stability flag (safe for backups)",
+        "type": "boolean",
+        "read": true,
+        "write": false,
+        "def": true
+      },
+      "native": {}
+    },
+    {
+      "_id": "info.systemStableReason",
+      "type": "state",
+      "common": {
+        "role": "text",
+        "name": "Summary reason for current stability status",
+        "type": "string",
+        "read": true,
+        "write": false,
+        "def": "Initializing"
+      },
+      "native": {}
+    },
+    {
+      "_id": "info.floodSuspects",
+      "type": "state",
+      "common": {
+        "role": "json",
+        "name": "Adapters with unusually high event rates",
+        "type": "string",
+        "read": true,
+        "write": false,
+        "def": "[]"
+      },
+      "native": {}
+    },
+    {
+      "_id": "info.logFileSizeMB",
+      "type": "state",
+      "common": {
+        "role": "value",
+        "name": "Current ioBroker log file size in MB",
+        "type": "number",
+        "unit": "MB",
+        "read": true,
+        "write": false,
+        "def": 0
+      },
+      "native": {}
+    },
+    {
+      "_id": "info.logGrowthMB",
+      "type": "state",
+      "common": {
+        "role": "value",
+        "name": "Log file growth in MB during last check interval",
+        "type": "number",
+        "unit": "MB",
+        "read": true,
+        "write": false,
+        "def": 0
+      },
+      "native": {}
+    },
+    {
+      "_id": "info.objectsDbSizeMB",
+      "type": "state",
+      "common": {
+        "role": "value",
+        "name": "Size of objects.jsonl database file in MB",
+        "type": "number",
+        "unit": "MB",
+        "read": true,
+        "write": false,
+        "def": 0
+      },
+      "native": {}
+    },
+    {
+      "_id": "info.statesDbSizeMB",
+      "type": "state",
+      "common": {
+        "role": "value",
+        "name": "Size of states.jsonl database file in MB",
+        "type": "number",
+        "unit": "MB",
+        "read": true,
+        "write": false,
+        "def": 0
+      },
+      "native": {}
+    },
+    {
+      "_id": "info.orphanedCount",
+      "type": "state",
+      "common": {
+        "role": "value",
+        "name": "Count of detected orphaned sub-processes",
+        "type": "number",
+        "read": true,
+        "write": false,
+        "def": 0
+      },
+      "native": {}
+    },
+    {
+      "_id": "info.orphanedProcesses",
+      "type": "state",
+      "common": {
+        "role": "json",
+        "name": "List of detected orphaned sub-processes",
         "type": "string",
         "read": true,
         "write": false,

@@ -4,7 +4,10 @@
  * Created with @iobroker/create-adapter v2.6.0
  */
 
+const fs = require('fs');
+const path = require('path');
 const os = require('os');
+const { exec } = require('child_process');
 const utils = require('@iobroker/adapter-core');
 
 class MemoryWatchdog extends utils.Adapter {
@@ -22,11 +25,17 @@ class MemoryWatchdog extends utils.Adapter {
         this.on('message', this.onMessage.bind(this));
         this.on('unload', this.onUnload.bind(this));
 
-        /** @type {Map<string, { startRss: number, startedAt: number, lastRestart: number, highCycles: number, restartsToday: number, currentMem: number, customConfig?: any }>} */
+        /** @type {Map<string, { startRss: number, startedAt: number, lastRestart: number, highCycles: number, restartsToday: number, currentMem: number, prevOutputCount?: number, lastOutputTs?: number, eventsPerSec?: number, silentFreeze?: boolean, customConfig?: any }>} */
         this.adapterData = new Map();
 
         /** @type {Array<{ timestamp: string, time: string, adapter: string, baselineMB: number, memoryMB: number, reason: string, restartsToday: number }>} */
         this.restartHistory = [];
+
+        /** @type {number} */
+        this.lastCheckTimestamp = Date.now();
+
+        /** @type {number} */
+        this.prevLogSizeMB = 0;
 
         /** @type {NodeJS.Timeout | null} */
         this.checkTimer = null;
@@ -66,15 +75,16 @@ class MemoryWatchdog extends utils.Adapter {
             this.scanActiveAdapters();
         }, 30000);
 
-        // Periodic memory check
+        // Periodic memory & system health check
         const intervalMs = Math.max(1, this.config.checkIntervalMin || 15) * 60 * 1000;
         this.checkTimer = this.setInterval(() => {
             this.checkMemory();
         }, intervalMs);
 
-        // Record initial free memory
+        // Record initial free memory & storage metrics
         const initialFree = Math.round(os.freemem() / (1024 * 1024));
         await this.setStateAsync('info.systemFreeMemMB', initialFree, true);
+        await this.checkStorageHealth();
 
         this.log.info(
             `Memory Watchdog initialized. Interval: ${this.config.checkIntervalMin}m, Factor: ${this.config.memoryFactor}x, Max: ${this.config.absoluteMaxMB}MB, Cycles: ${this.config.requiredHighCycles}, Daily budget: ${this.config.maxRestartsPerDay}`,
@@ -146,6 +156,7 @@ class MemoryWatchdog extends utils.Adapter {
                             highCycles: 0,
                             restartsToday: 0,
                             currentMem: mem,
+                            lastOutputTs: Date.now(),
                             customConfig: custom,
                         });
                         await this.setStateAsync(`adapters.${instanceId}.baselineMB`, mem, true);
@@ -309,6 +320,107 @@ class MemoryWatchdog extends utils.Adapter {
     }
 
     /**
+     * Inspects database file sizes and ioBroker log file growth
+     */
+    async checkStorageHealth() {
+        try {
+            const dataDir = utils.getAbsoluteDefaultDataDir();
+
+            // Check objects.jsonl
+            const objPath = path.join(dataDir, 'objects.jsonl');
+            try {
+                const objStat = await fs.promises.stat(objPath);
+                const objMB = Math.round(objStat.size / (1024 * 1024));
+                await this.setStateAsync('info.objectsDbSizeMB', objMB, true);
+                if (this.config.dbMonitoringEnabled && objMB >= (this.config.dbSizeWarnThresholdMB || 100)) {
+                    this.log.warn(`[DB Health] objects.jsonl is large (${objMB} MB >= ${this.config.dbSizeWarnThresholdMB || 100} MB). Consider running "iob compress" if growth continues.`);
+                }
+            } catch (e) {
+                // Ignore missing file if running on Redis
+            }
+
+            // Check states.jsonl
+            const stPath = path.join(dataDir, 'states.jsonl');
+            try {
+                const stStat = await fs.promises.stat(stPath);
+                const stMB = Math.round(stStat.size / (1024 * 1024));
+                await this.setStateAsync('info.statesDbSizeMB', stMB, true);
+            } catch (e) {
+                // Ignore missing file if running on Redis
+            }
+
+            // Check log file
+            const logDir = path.join(dataDir, '../log');
+            let logFile = path.join(logDir, 'iobroker.current.log');
+            if (!fs.existsSync(logFile)) {
+                // Fallback to today's date
+                const today = new Date().toISOString().slice(0, 10);
+                logFile = path.join(logDir, `iobroker.${today}.log`);
+            }
+
+            if (fs.existsSync(logFile)) {
+                const logStat = await fs.promises.stat(logFile);
+                const logSizeMB = Math.round(logStat.size / (1024 * 1024));
+                await this.setStateAsync('info.logFileSizeMB', logSizeMB, true);
+
+                if (this.prevLogSizeMB > 0) {
+                    const growthMB = Math.max(0, logSizeMB - this.prevLogSizeMB);
+                    await this.setStateAsync('info.logGrowthMB', growthMB, true);
+
+                    if (this.config.logMonitoringEnabled && growthMB >= (this.config.logGrowthWarnMB || 25)) {
+                        const warnLog = `[Log-Spam Alert] Log file grew by +${growthMB} MB in check interval (Current size: ${logSizeMB} MB). Check for error loops or spamming adapters!`;
+                        this.log.warn(warnLog);
+                        await this.sendNotification(`⚠️ ${warnLog}`);
+                    }
+                }
+                this.prevLogSizeMB = logSizeMB;
+            }
+        } catch (err) {
+            this.log.debug(`Storage health check note: ${err}`);
+        }
+    }
+
+    /**
+     * Checks for orphaned processes (PPID 1) such as abandoned go2rtc or ffmpeg instances
+     * @returns {Promise<{ count: number, processes: any[] }>}
+     */
+    async checkOrphanProcesses() {
+        return new Promise((resolve) => {
+            if (!this.config.orphanDetectionEnabled || process.platform !== 'linux') {
+                return resolve({ count: 0, processes: [] });
+            }
+
+            exec('ps -eo pid,ppid,comm,args --no-headers', (err, stdout) => {
+                if (err || !stdout) return resolve({ count: 0, processes: [] });
+
+                const orphans = [];
+                const lines = stdout.split('\n');
+                const targetBinaries = ['go2rtc', 'ffmpeg', 'python', 'node'];
+
+                for (const line of lines) {
+                    const parts = line.trim().split(/\s+/);
+                    if (parts.length < 4) continue;
+                    const pid = parseInt(parts[0], 10);
+                    const ppid = parseInt(parts[1], 10);
+                    const comm = parts[2];
+                    const args = parts.slice(3).join(' ');
+
+                    // Check if it is a target binary orphaned to init/systemd (PPID 1 or 0)
+                    if ((ppid === 1 || ppid === 0) && targetBinaries.some(b => comm.includes(b))) {
+                        // Exclude legitimate root services and js-controller itself
+                        if (args.includes('iobroker.js-controller') || args.includes('systemd') || args.includes('containerd')) {
+                            continue;
+                        }
+                        orphans.push({ pid, ppid, comm, args: args.slice(0, 120) });
+                    }
+                }
+
+                resolve({ count: orphans.length, processes: orphans });
+            });
+        });
+    }
+
+    /**
      * Updates the comprehensive JSON statistics state for Dashboards (VIS, Grafana, Home Assistant)
      */
     async updateStatsDatapoint() {
@@ -324,7 +436,9 @@ class MemoryWatchdog extends utils.Adapter {
                 const ratio = data.startRss ? parseFloat((data.currentMem / data.startRss).toFixed(2)) : 1.0;
 
                 let status = 'ok';
-                if (data.restartsToday >= maxDaily) {
+                if (data.silentFreeze) {
+                    status = 'silent_freeze';
+                } else if (data.restartsToday >= maxDaily) {
                     status = 'limit_reached';
                 } else if (data.highCycles >= requiredCycles) {
                     status = 'critical';
@@ -339,6 +453,7 @@ class MemoryWatchdog extends utils.Adapter {
                     ratio: ratio,
                     limitMB: effMaxMB,
                     factorLimitMB: Math.round(data.startRss * effFactor),
+                    eventsPerSec: data.eventsPerSec || 0,
                     highCycles: data.highCycles || 0,
                     restartsToday: data.restartsToday || 0,
                     status: status,
@@ -362,12 +477,26 @@ class MemoryWatchdog extends utils.Adapter {
         if (!this.config.enabled) return;
 
         this.log.debug('Executing periodic memory check...');
+        const now = Date.now();
+        const deltaSeconds = Math.max(1, Math.round((now - this.lastCheckTimestamp) / 1000));
+        this.lastCheckTimestamp = now;
 
-        // Update system free memory state
+        // 1. Update system free memory state
         const freeMemMB = Math.round(os.freemem() / (1024 * 1024));
         await this.setStateAsync('info.systemFreeMemMB', freeMemMB, true);
 
-        // Emergency Free-RAM protection check
+        // 2. Storage health check (database sizes & log growth)
+        await this.checkStorageHealth();
+
+        // 3. Orphaned processes scan
+        const orphanResult = await this.checkOrphanProcesses();
+        await this.setStateAsync('info.orphanedCount', orphanResult.count, true);
+        await this.setStateAsync('info.orphanedProcesses', JSON.stringify(orphanResult.processes), true);
+        if (orphanResult.count > 0) {
+            this.log.warn(`[Process Health] Detected ${orphanResult.count} potentially orphaned process(es): ${JSON.stringify(orphanResult.processes)}`);
+        }
+
+        // 4. Emergency Free-RAM protection check
         if (this.config.emergencyFreeRamEnabled && freeMemMB < (this.config.emergencyFreeRamMinMB || 150)) {
             this.log.warn(`🚨 EMERGENCY: Free system RAM is dangerously low (${freeMemMB} MB < ${this.config.emergencyFreeRamMinMB || 150} MB)! Evaluating highest memory consumer...`);
 
@@ -398,6 +527,7 @@ class MemoryWatchdog extends utils.Adapter {
         const cooldownMs = (this.config.restartCooldownMin || 60) * 60 * 1000;
         const requiredCycles = this.config.requiredHighCycles || 2;
         const maxDaily = this.config.maxRestartsPerDay || 4;
+        const floodSuspects = [];
 
         for (const [id, aliveState] of Object.entries(aliveStates)) {
             if (!aliveState || !aliveState.val) continue;
@@ -408,6 +538,47 @@ class MemoryWatchdog extends utils.Adapter {
             const custom = this.getCustomRule(instanceId);
             if (custom && custom.active === false) continue;
 
+            // --- State-Flooding & Event-Rate Measurement ---
+            const outCountState = await this.getForeignStateAsync(`system.adapter.${instanceId}.outputCount`);
+            if (outCountState && typeof outCountState.val === 'number') {
+                let data = this.adapterData.get(instanceId);
+                if (data) {
+                    if (data.prevOutputCount !== undefined) {
+                        const countDelta = outCountState.val >= data.prevOutputCount ? (outCountState.val - data.prevOutputCount) : outCountState.val;
+                        const ratePerSec = Math.round(countDelta / deltaSeconds);
+                        data.eventsPerSec = ratePerSec;
+
+                        if (countDelta > 0) {
+                            data.lastOutputTs = now;
+                        }
+
+                        if (this.config.floodDetectionEnabled && ratePerSec >= (this.config.floodThresholdEventsPerSec || 50)) {
+                            floodSuspects.push({ instance: instanceId, eventsPerSec: ratePerSec, threshold: this.config.floodThresholdEventsPerSec || 50 });
+                            const floodMsg = `[State-Flood Alert] [${instanceId}] is emitting ${ratePerSec} events/sec (threshold: ${this.config.floodThresholdEventsPerSec || 50})`;
+                            this.log.warn(floodMsg);
+
+                            if (this.config.floodAction === 'restart') {
+                                await this.restartAdapter(instanceId, `State-Flood protection triggered (${ratePerSec} events/sec)`, data);
+                            }
+                        }
+                    }
+                    data.prevOutputCount = outCountState.val;
+                }
+            }
+
+            // --- Silent Freeze (Scheintot) Detection ---
+            if (this.config.silentDetectionEnabled) {
+                const maxSilenceMs = (this.config.maxSilenceHours || 3) * 3600 * 1000;
+                const data = this.adapterData.get(instanceId);
+                if (data && data.lastOutputTs && (now - data.lastOutputTs > maxSilenceMs)) {
+                    data.silentFreeze = true;
+                    this.log.warn(`[Silent Freeze] [${instanceId}] has emitted 0 events for over ${(now - data.lastOutputTs) / 3600000} hours despite being alive=true.`);
+                } else if (data) {
+                    data.silentFreeze = false;
+                }
+            }
+
+            // --- Memory Evaluation ---
             const memState = await this.getForeignStateAsync(`system.adapter.${instanceId}.memRss`);
             if (!memState || typeof memState.val !== 'number' || memState.val <= 0) continue;
 
@@ -422,6 +593,7 @@ class MemoryWatchdog extends utils.Adapter {
                     highCycles: 0,
                     restartsToday: 0,
                     currentMem: currentMem,
+                    lastOutputTs: now,
                     customConfig: custom,
                 };
                 this.adapterData.set(instanceId, data);
@@ -493,6 +665,26 @@ class MemoryWatchdog extends utils.Adapter {
                 await this.restartAdapter(instanceId, triggerReason, data);
             }
         }
+
+        // Update flood suspects state
+        await this.setStateAsync('info.floodSuspects', JSON.stringify(floodSuspects), true);
+
+        // Overall system stability calculation (Safe for Backups)
+        let isSystemStable = true;
+        let stableReason = `System healthy (${freeMemMB} MB free RAM, ${this.adapterData.size} adapters monitored)`;
+
+        if (freeMemMB < (this.config.emergencyFreeRamMinMB || 150)) {
+            isSystemStable = false;
+            stableReason = `Critically low free RAM (${freeMemMB} MB < ${this.config.emergencyFreeRamMinMB || 150} MB)`;
+        } else if (floodSuspects.length > 0) {
+            isSystemStable = false;
+            stableReason = `Active state-flood detected (${floodSuspects.map(s => `${s.instance}: ${s.eventsPerSec}/s`).join(', ')})`;
+        } else if (orphanResult.count > 0) {
+            stableReason += ` - Note: ${orphanResult.count} orphaned sub-process(es) present`;
+        }
+
+        await this.setStateAsync('info.systemStable', isSystemStable, true);
+        await this.setStateAsync('info.systemStableReason', stableReason, true);
 
         await this.updateStatsDatapoint();
     }
@@ -668,12 +860,14 @@ class MemoryWatchdog extends utils.Adapter {
                             highCycles: 0,
                             restartsToday: 0,
                             currentMem: mem,
+                            lastOutputTs: Date.now(),
                         };
                         this.adapterData.set(instanceId, data);
                     } else {
                         data.startRss = mem;
                         data.startedAt = Date.now();
                         data.highCycles = 0;
+                        data.lastOutputTs = Date.now();
                     }
 
                     await this.initAdapterStates(instanceId);
@@ -704,6 +898,7 @@ class MemoryWatchdog extends utils.Adapter {
                         baselineMB: val.startRss,
                         currentMB: val.currentMem,
                         ratio: val.startRss ? parseFloat((val.currentMem / val.startRss).toFixed(2)) : 1.0,
+                        eventsPerSec: val.eventsPerSec || 0,
                         restartsToday: val.restartsToday,
                         highCycles: val.highCycles,
                     };
