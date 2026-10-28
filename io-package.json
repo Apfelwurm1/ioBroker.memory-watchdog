@@ -121,7 +121,7 @@
     "quietHoursStart": "22:00",
     "quietHoursEnd": "07:00",
     "floodDetectionEnabled": true,
-    "floodThresholdEventsPerSec": 50,
+    "floodThresholdEventsPerSec": 250,
     "floodAction": "warn_only",
     "silentDetectionEnabled": false,
     "maxSilenceHours": 3,
@@ -386,6 +386,19 @@
       "common": {
         "role": "json",
         "name": "List of detected orphaned sub-processes",
+        "type": "string",
+        "read": true,
+        "write": false,
+        "def": "[]"
+      },
+      "native": {}
+    },
+    {
+      "_id": "info.pendingRestarts",
+      "type": "state",
+      "common": {
+        "role": "json",
+        "name": "List of adapters currently pending restart recovery",
         "type": "string",
         "read": true,
         "write": false,

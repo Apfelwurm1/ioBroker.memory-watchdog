@@ -492,8 +492,8 @@
             "de": "Schwellenwert (Events / Sekunde)"
           },
           "help": {
-            "en": "Rate above which an adapter is flagged as flooding (e.g. 50 events/s)",
-            "de": "Ab dieser Rate gilt ein Adapter als Bus-Fluter (z.B. 50 Events/s)"
+            "en": "Rate above which an adapter is flagged as flooding (e.g. 250 events/s)",
+            "de": "Ab dieser Rate gilt ein Adapter als Bus-Fluter (z.B. 250 Events/s)"
           },
           "hidden": "!data.floodDetectionEnabled",
           "min": 10,
