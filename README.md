@@ -111,7 +111,7 @@ In größeren ioBroker-Installationen mit vielen Adaptern führen schleichende S
 ## License
 MIT License
 
-Copyright (c) 2026 bengel.bytes <info@bengel.bytes>
+Copyright (c) 2026 bengel.bytes
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal

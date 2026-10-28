@@ -45,7 +45,7 @@
       "zh-cn": "具有基线学习、动态系数限制、持续负载验证和重启预算的智能内存看门狗，可防止内存泄漏和服务器崩溃。"
     },
     "authors": [
-      "bengel.bytes <info@bengel.bytes>"
+      "bengel.bytes"
     ],
     "keywords": [
       "memory",

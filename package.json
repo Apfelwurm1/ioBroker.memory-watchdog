@@ -3,8 +3,7 @@
   "version": "0.1.0",
   "description": "Smart memory watchdog, baseline learner, and leak prevention for ioBroker adapter instances",
   "author": {
-    "name": "bengel.bytes",
-    "email": "info@bengel.bytes"
+    "name": "bengel.bytes"
   },
   "homepage": "https://github.com/bengel-bytes/ioBroker.memory-watchdog",
   "license": "MIT",
