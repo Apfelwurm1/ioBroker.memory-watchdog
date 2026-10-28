@@ -88,6 +88,16 @@ In größeren ioBroker-Installationen mit vielen Adaptern führen schleichende S
 ---
 
 ## Changelog
+### 0.1.3 (2026-10-28)
+* (Apfelwurm1) Auto-migrate legacy flood threshold from 50 to 250 ev/s on existing instances
+* (Apfelwurm1) Robustness: Immediate shutdown recovery in onUnload for all pending adapters
+* (Apfelwurm1) Robustness: Execute recoverPendingRestarts prior to checking adapter enabled status
+* (Apfelwurm1) Concurrency: In-memory pendingRestartsSet eliminates async read/modify/write race conditions
+* (Apfelwurm1) Budget: Verify state timestamp when restoring restartsToday to prevent counting yesterday's budget
+* (Apfelwurm1) Security: Advanced regex credentials sanitization for URLs, auth headers, token parameters and secrets
+* (Apfelwurm1) UI: Add customFloodThreshold column to Custom Rules table in jsonConfig
+* (Apfelwurm1) Telemetry: Selective emergency RAM targeting requiring ratio > 1.3 to avoid restarting healthy adapters
+
 ### 0.1.2 (2026-10-28)
 * (Apfelwurm1) Hotfix: Fix missing limitMB and factorLimitMB in info.adapterStats JSON
 * (Apfelwurm1) Hotfix: Restrict emergency RAM restarts strictly to the single largest consumer (no cascading restarts)

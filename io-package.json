@@ -1,8 +1,21 @@
 {
   "common": {
     "name": "memory-watchdog",
-    "version": "0.1.2",
+    "version": "0.1.3",
     "news": {
+      "0.1.3": {
+        "en": "Auto-migrate legacy flood threshold to 250 ev/s, shutdown recovery in onUnload, thread-safe pending restarts Set, budget daily validation and comprehensive credentials sanitization",
+        "de": "Automatische Migration des Flood-Limits auf 250 Ev/s, Shutdown-Recovery in onUnload, threadsicheres pendingRestarts Set, Datumspruefung des Tagesbudgets und umfassende Passwort-Maskierung",
+        "ru": "Автоматическая миграция порога флуда на 250 событий/с, восстановление при выключении, проверка ежедневного бюджета и надежная очистка учетных данных",
+        "pt": "Migração automática do limite de flood para 250 ev/s, recuperação no encerramento, validação do orçamento diário e higienização robusta de credenciais",
+        "nl": "Automatische migratie van flood-drempel naar 250 ev/s, shutdown-herstel in onUnload, thread-veilige pendingRestarts en robuuste opschoning van inloggegevens",
+        "fr": "Migration automatique du seuil de flood à 250 ev/s, récupération à l'arrêt, validation quotidienne du budget et assainissement complet des identifiants",
+        "it": "Migrazione automatica della soglia di flood a 250 ev/s, ripristino all'arresto in onUnload, set thread-safe e sanificazione avanzata delle credenziali",
+        "es": "Migración automática del umbral de flood a 250 ev/s, recuperación en onUnload, validación diaria de presupuesto y sanitización avanzada de credenciales",
+        "pl": "Automatyczna migracja limitu flood do 250 zdarzeń/s, recovery w onUnload, walidacja budżetu dziennego i zaawansowane maskowanie poświadczeń",
+        "uk": "Автоматична міграція порогу флуду до 250 под/с, відновлення під час вимкнення, щоденна перевірка бюджету та розширене очищення облікових даних",
+        "zh-cn": "自动将传统洪水阈值迁移至 250 ev/s、onUnload 关闭恢复、线程安全的待处理重启 Set 以及全面的凭据清理"
+      },
       "0.1.2": {
         "en": "Hotfix: Fix limitMB in dashboard JSON, single-target emergency RAM recovery, higher flood threshold, sync restart locks and crash-resilient pending restart recovery",
         "de": "Hotfix: Korrektur von limitMB im Dashboard-JSON, Einzeltarget-Notfall-RAM-Freigabe, hoeherer Flood-Schwellwert, synchrone Restart-Sperre und absturzsichere Recovery",

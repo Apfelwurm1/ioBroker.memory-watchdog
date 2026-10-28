@@ -262,32 +262,41 @@
                 "en": "Adapter Instance (e.g. shelly.0)",
                 "de": "Adapter-Instanz (z.B. shelly.0)"
               },
-              "width": "25%"
+              "width": "20%"
             },
             {
               "type": "checkbox",
               "attr": "active",
               "title": {
-                "en": "Watchdog Active",
-                "de": "Überwachung aktiv"
+                "en": "Active",
+                "de": "Aktiv"
               },
-              "width": "15%"
+              "width": "10%"
             },
             {
               "type": "number",
               "attr": "customMaxMB",
               "title": {
-                "en": "Custom Max MB (0 = default)",
-                "de": "Eigenes Limit MB (0 = Standard)"
+                "en": "Max MB (0 = default)",
+                "de": "Limit MB (0 = Standard)"
               },
-              "width": "20%"
+              "width": "15%"
             },
             {
               "type": "number",
               "attr": "customFactor",
               "title": {
-                "en": "Custom Factor (0 = default)",
-                "de": "Eigener Faktor (0 = Standard)"
+                "en": "Factor (0 = default)",
+                "de": "Faktor (0 = Standard)"
+              },
+              "width": "15%"
+            },
+            {
+              "type": "number",
+              "attr": "customFloodThreshold",
+              "title": {
+                "en": "Flood Ev/s (0 = default)",
+                "de": "Flood Ev/s (0 = Standard)"
               },
               "width": "20%"
             },
