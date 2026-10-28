@@ -51,9 +51,8 @@ class MemoryWatchdog extends utils.Adapter {
         // Initialize scheduled midnight reset for daily restart budgets
         this.setupMidnightTimer();
 
-        // Subscribe to all adapter alive states and memory RSS states
+        // Subscribe only to adapter alive states (not memRss, to avoid processing hundreds of events per minute)
         this.subscribeForeignStates('system.adapter.*.*.alive');
-        this.subscribeForeignStates('system.adapter.*.*.memRss');
 
         // Initial scan of active adapters after 30 seconds
         this.setTimeout(() => {
