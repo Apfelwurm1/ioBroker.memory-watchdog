@@ -88,6 +88,15 @@ In größeren ioBroker-Installationen mit vielen Adaptern führen schleichende S
 ---
 
 ## Changelog
+### 0.1.2 (2026-10-28)
+* (Apfelwurm1) Hotfix: Fix missing limitMB and factorLimitMB in info.adapterStats JSON
+* (Apfelwurm1) Hotfix: Restrict emergency RAM restarts strictly to the single largest consumer (no cascading restarts)
+* (Apfelwurm1) Hotfix: Global 30-minute emergency restart cooldown prevents cycling across secondary adapters
+* (Apfelwurm1) Hotfix: Increase default flood threshold to 250 events/s with sustained-cycle hysteresis
+* (Apfelwurm1) Hotfix: Set restart lock synchronously to eliminate race conditions with incoming message commands
+* (Apfelwurm1) Safety: Persistent info.pendingRestarts tracks restarts across host crashes/reboots for guaranteed re-enablement
+* (Apfelwurm1) Telemetry: Mark >30m running adapter baselines as provisional to defer factor checks until next cold start
+
 ### 0.1.1 (2026-10-28)
 * (Apfelwurm1) Fix: Event-rate calculation using `system.config` statisticsInterval window
 * (Apfelwurm1) Fix: Cold-start baseline learning triggering only on actual `false -> true` state transitions

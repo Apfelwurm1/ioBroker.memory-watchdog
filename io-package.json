@@ -1,8 +1,21 @@
 {
   "common": {
     "name": "memory-watchdog",
-    "version": "0.1.1",
+    "version": "0.1.2",
     "news": {
+      "0.1.2": {
+        "en": "Hotfix: Fix limitMB in dashboard JSON, single-target emergency RAM recovery, higher flood threshold, sync restart locks and crash-resilient pending restart recovery",
+        "de": "Hotfix: Korrektur von limitMB im Dashboard-JSON, Einzeltarget-Notfall-RAM-Freigabe, hoeherer Flood-Schwellwert, synchrone Restart-Sperre und absturzsichere Recovery",
+        "ru": "Hotfix: исправление limitMB в dashboard JSON, восстановление RAM, синхронная блокировка и устойчивость к сбоям",
+        "pt": "Hotfix: Correção de limitMB no dashboard JSON, recuperação de RAM direcionada, limites ajustados e bloqueios síncronos",
+        "nl": "Hotfix: Correctie van limitMB in dashboard-JSON, gericht RAM-noodherstel, synchronisatiesloten en crashbestendig herstel",
+        "fr": "Hotfix: Correction de limitMB dans le tableau de bord JSON, récupération d'urgence ciblée, verrous synchrones et résilience",
+        "it": "Hotfix: Correzione di limitMB nel dashboard JSON, ripristino RAM di emergenza mirato, blocchi sincroni e ripristino resiliente",
+        "es": "Hotfix: Corrección de limitMB en dashboard JSON, recuperación de RAM dirigida, bloqueos síncronos y recuperación ante fallos",
+        "pl": "Hotfix: Poprawka limitMB w JSON dashboardu, ukierunkowane odzyskiwanie RAM, blokady synchroniczne i odporność na awarie",
+        "uk": "Hotfix: Виправлення limitMB у JSON дашборду, цільове відновлення RAM, синхронні блокування та відновлення після збоїв",
+        "zh-cn": "热修复：修复仪表板 JSON 中的 limitMB、单目标紧急 RAM 恢复、同步重启锁定和抗崩溃恢复"
+      },
       "0.1.1": {
         "en": "Fix event-rate calculation, baseline learning on cold start, credential sanitization in process checks and robust restart handling",
         "de": "Korrektur der Event-Raten-Berechnung, Baseline-Lernen nur bei Kaltstart, Passwort-Maskierung bei Prozess-Scans und abgesicherte Restarts",
