@@ -1,0 +1,192 @@
+{
+  "common": {
+    "name": "memory-watchdog",
+    "version": "0.1.0",
+    "news": {
+      "0.1.0": {
+        "en": "Initial public release of Smart Memory Watchdog",
+        "de": "Erste Veröffentlichung des Smart Memory Watchdog",
+        "ru": "Первый публичный релиз Smart Memory Watchdog",
+        "pt": "Lançamento público inicial do Smart Memory Watchdog",
+        "nl": "Eerste openbare release van Smart Memory Watchdog",
+        "fr": "Première version publique de Smart Memory Watchdog",
+        "it": "Versione pubblica iniziale di Smart Memory Watchdog",
+        "es": "Lanzamiento público inicial de Smart Memory Watchdog",
+        "pl": "Pierwsze publiczne wydanie Smart Memory Watchdog",
+        "uk": "Перший публічний реліз Smart Memory Watchdog",
+        "zh-cn": "Smart Memory Watchdog 首次公开发布"
+      }
+    },
+    "title": "Smart Memory Watchdog",
+    "titleLang": {
+      "en": "Smart Memory Watchdog",
+      "de": "Intelligenter Speicher-Wächter",
+      "ru": "Умный сторожевой таймер памяти",
+      "pt": "Watchdog de Memória Inteligente",
+      "nl": "Slimme Geheugen Watchdog",
+      "fr": "Chien de garde de mémoire intelligent",
+      "it": "Watchdog Intelligente della Memoria",
+      "es": "Guardián de Memoria Inteligente",
+      "pl": "Inteligentny strażnik pamięci",
+      "uk": "Розумний сторожовий таймер пам'яті",
+      "zh-cn": "智能内存看门狗"
+    },
+    "desc": {
+      "en": "Intelligent memory watchdog with baseline learning, dynamic factor limits, sustained load verification and restart budgeting to prevent memory leaks and server crashes.",
+      "de": "Intelligenter Speicher-Wächter mit Startwert-Lernen, dynamischen Faktor-Grenzen, Dauer-Prüfung und Tages-Neustart-Budget zum Schutz vor Speicherlecks und Server-Abstürzen.",
+      "ru": "Интеллектуальный сторожевой таймер памяти с обучением базовому уровню, динамическими пределами факторов, проверкой устойчивой нагрузки и бюджетированием перезапуска.",
+      "pt": "Watchdog de memória inteligente com aprendizado de linha de base, limites de fatores dinâmicos, verificação de carga sustentada e orçamento de reinicialização.",
+      "nl": "Intelligente geheugen-watchdog met basislijnleren, dynamische factorlimieten, verificatie van aanhoudende belasting en herstartbudgettering.",
+      "fr": "Chien de garde de mémoire intelligent avec apprentissage de la ligne de base, limites de facteurs dynamiques, vérification de charge soutenue et budget de redémarrage.",
+      "it": "Watchdog di memoria intelligente con apprendimento della baseline, limiti di fattori dinamici, verifica del carico sostenuto e budgeting di riavvio.",
+      "es": "Guardián de memoria inteligente con aprendizaje de línea de base, límites de factores dinámicos, verificación de carga sostenida y presupuesto de reinicio.",
+      "pl": "Inteligentny strażnik pamięci z uczeniem się linii bazowej, dynamicznymi limitami czynników, weryfikacją trwałego obciążenia i budżetowaniem restartu.",
+      "uk": "Розумний сторожовий таймер пам'яті з навчанням базової лінії, динамічними лімітами факторів, перевіркою тривалого навантаження та бюджетуванням перезапуску.",
+      "zh-cn": "具有基线学习、动态系数限制、持续负载验证和重启预算的智能内存看门狗，可防止内存泄漏和服务器崩溃。"
+    },
+    "authors": [
+      "bengel.bytes <info@bengel.bytes>"
+    ],
+    "keywords": [
+      "memory",
+      "watchdog",
+      "leak",
+      "ram",
+      "monitoring",
+      "process",
+      "performance",
+      "stability"
+    ],
+    "licenseInformation": {
+      "license": "MIT",
+      "type": "free"
+    },
+    "platform": "Javascript/Node.js",
+    "main": "main.js",
+    "icon": "memory-watchdog.png",
+    "enabled": true,
+    "extIcon": "https://raw.githubusercontent.com/bengel-bytes/ioBroker.memory-watchdog/main/admin/memory-watchdog.png",
+    "readme": "https://github.com/bengel-bytes/ioBroker.memory-watchdog/blob/main/README.md",
+    "loglevel": "info",
+    "mode": "daemon",
+    "type": "utility",
+    "compact": true,
+    "connectionType": "local",
+    "dataSource": "push",
+    "adminUI": {
+      "config": "json"
+    },
+    "dependencies": [
+      {
+        "js-controller": ">=5.0.19"
+      }
+    ],
+    "globalDependencies": [
+      {
+        "admin": ">=6.12.0"
+      }
+    ]
+  },
+  "native": {
+    "enabled": true,
+    "checkIntervalMin": 15,
+    "baselineDelayMin": 5,
+    "minCheckAgeMin": 10,
+    "memoryFactor": 2.5,
+    "minRestartMB": 250,
+    "absoluteMaxMB": 450,
+    "requiredHighCycles": 2,
+    "maxRestartsPerDay": 4,
+    "restartCooldownMin": 60,
+    "restartPauseSec": 4,
+    "customRules": [
+      {
+        "adapter": "admin.0",
+        "active": true,
+        "customMaxMB": 600,
+        "customFactor": 3.0,
+        "notes": "Web-Admin darf bei vielen offenen Browser-Tabs höher wachsen"
+      }
+    ],
+    "notifyOnRestart": true,
+    "notifyOnLimitReached": true,
+    "notifyService": "none",
+    "notifyInstance": "pushover.0",
+    "notifyCustomState": ""
+  },
+  "instanceObjects": [
+    {
+      "_id": "info",
+      "type": "channel",
+      "common": {
+        "name": "Information"
+      },
+      "native": {}
+    },
+    {
+      "_id": "info.connection",
+      "type": "state",
+      "common": {
+        "role": "indicator.connected",
+        "name": "Device or service connected",
+        "type": "boolean",
+        "read": true,
+        "write": false,
+        "def": false
+      },
+      "native": {}
+    },
+    {
+      "_id": "info.monitoredAdapters",
+      "type": "state",
+      "common": {
+        "role": "value",
+        "name": "Count of monitored adapter instances",
+        "type": "number",
+        "read": true,
+        "write": false,
+        "def": 0
+      },
+      "native": {}
+    },
+    {
+      "_id": "info.totalRestartsToday",
+      "type": "state",
+      "common": {
+        "role": "value",
+        "name": "Total restarts triggered today",
+        "type": "number",
+        "read": true,
+        "write": false,
+        "def": 0
+      },
+      "native": {}
+    },
+    {
+      "_id": "info.lastAction",
+      "type": "state",
+      "common": {
+        "role": "text",
+        "name": "Last action performed by watchdog",
+        "type": "string",
+        "read": true,
+        "write": false,
+        "def": ""
+      },
+      "native": {}
+    },
+    {
+      "_id": "info.lastActionTime",
+      "type": "state",
+      "common": {
+        "role": "date",
+        "name": "Timestamp of last action",
+        "type": "string",
+        "read": true,
+        "write": false,
+        "def": ""
+      },
+      "native": {}
+    }
+  ]
+}

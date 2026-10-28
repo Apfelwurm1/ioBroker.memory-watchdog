@@ -1,0 +1,360 @@
+{
+  "i18n": true,
+  "type": "panel",
+  "items": {
+    "mainTabs": {
+      "type": "tabs",
+      "items": {
+        "tabGeneral": {
+          "type": "panel",
+          "label": {
+            "en": "General Settings",
+            "de": "Allgemeine Einstellungen"
+          },
+          "items": {
+            "headerGlobal": {
+              "type": "header",
+              "text": {
+                "en": "Watchdog Activation & Timing",
+                "de": "Wächter-Aktivierung & Zeitabstände"
+              }
+            },
+            "enabled": {
+              "type": "checkbox",
+              "label": {
+                "en": "Enable Memory Watchdog",
+                "de": "Speicher-Wächter aktiv"
+              },
+              "help": {
+                "en": "Master switch to turn on/off automatic monitoring and restarts",
+                "de": "Hauptschalter für die automatische Überwachung und Neustarts"
+              },
+              "sm": 12,
+              "md": 4
+            },
+            "checkIntervalMin": {
+              "type": "number",
+              "label": {
+                "en": "Check Interval (Minutes)",
+                "de": "Prüfintervall (Minuten)"
+              },
+              "min": 1,
+              "max": 120,
+              "step": 1,
+              "sm": 12,
+              "md": 4
+            },
+            "baselineDelayMin": {
+              "type": "number",
+              "label": {
+                "en": "Learning Delay after Start (Minutes)",
+                "de": "Lern-Verzögerung nach Start (Minuten)"
+              },
+              "help": {
+                "en": "Wait this time after an adapter starts before recording its baseline memory",
+                "de": "Wartezeit nach dem Adapterstart, bevor der Startwert erfasst wird"
+              },
+              "min": 1,
+              "max": 30,
+              "step": 1,
+              "sm": 12,
+              "md": 4
+            },
+            "dividerLimits": {
+              "type": "divider"
+            },
+            "headerLimits": {
+              "type": "header",
+              "text": {
+                "en": "Thresholds & Limits",
+                "de": "Schwellenwerte & Limits"
+              }
+            },
+            "memoryFactor": {
+              "type": "number",
+              "label": {
+                "en": "Memory Factor (Multiplier)",
+                "de": "Speicher-Faktor (Multiplikator)"
+              },
+              "help": {
+                "en": "Trigger threshold relative to baseline (e.g. 2.5 = 250% of startup memory)",
+                "de": "Schwelle relativ zum Startwert (z.B. 2.5 = 250% des Startspeichers)"
+              },
+              "min": 1.2,
+              "max": 10.0,
+              "step": 0.1,
+              "sm": 12,
+              "md": 4
+            },
+            "minRestartMB": {
+              "type": "number",
+              "label": {
+                "en": "Minimum RAM for Factor Trigger (MB)",
+                "de": "Mindest-RAM für Faktorprüfung (MB)"
+              },
+              "help": {
+                "en": "Factor check only triggers if memory is above this threshold (avoids restarting tiny adapters)",
+                "de": "Faktorprüfung greift erst ab dieser Mindestgröße (verhindert Neustart sehr kleiner Adapter)"
+              },
+              "min": 50,
+              "max": 2000,
+              "step": 25,
+              "sm": 12,
+              "md": 4
+            },
+            "absoluteMaxMB": {
+              "type": "number",
+              "label": {
+                "en": "Absolute Hard Limit (MB)",
+                "de": "Absolutes Notfall-Limit (MB)"
+              },
+              "help": {
+                "en": "Adapters exceeding this absolute RAM size are restarted regardless of factor",
+                "de": "Adapter über dieser absoluten Grenze werden unabhängig vom Faktor neu gestartet"
+              },
+              "min": 100,
+              "max": 8000,
+              "step": 50,
+              "sm": 12,
+              "md": 4
+            },
+            "dividerSafety": {
+              "type": "divider"
+            },
+            "headerSafety": {
+              "type": "header",
+              "text": {
+                "en": "Safety Filters & Cloud Protection",
+                "de": "Sicherheits-Filter & Cloud-Schutz"
+              }
+            },
+            "requiredHighCycles": {
+              "type": "number",
+              "label": {
+                "en": "Consecutive High Cycles required",
+                "de": "Dauer-Filter (Zyklen in Folge zu hoch)"
+              },
+              "help": {
+                "en": "Memory must be high for this many checks in a row before restarting (filters out transient spikes)",
+                "de": "Speicher muss so viele Prüfungen hintereinander zu hoch sein (filtert Lastspitzen heraus)"
+              },
+              "min": 1,
+              "max": 10,
+              "step": 1,
+              "sm": 12,
+              "md": 4
+            },
+            "maxRestartsPerDay": {
+              "type": "number",
+              "label": {
+                "en": "Max Restarts per Adapter & Day",
+                "de": "Max. Neustarts pro Adapter & Tag"
+              },
+              "help": {
+                "en": "Protects against restart loops and cloud API rate limits. Resets automatically at 00:00.",
+                "de": "Schützt vor Endlosschleifen und Cloud-Sperren. Setzt sich um Mitternacht zurück."
+              },
+              "min": 1,
+              "max": 24,
+              "step": 1,
+              "sm": 12,
+              "md": 4
+            },
+            "restartCooldownMin": {
+              "type": "number",
+              "label": {
+                "en": "Cooldown between Restarts (Minutes)",
+                "de": "Abkühlpause zwischen Neustarts (Minuten)"
+              },
+              "help": {
+                "en": "Minimum delay before the same adapter can be restarted again",
+                "de": "Mindestabstand, bevor derselbe Adapter erneut neu gestartet werden darf"
+              },
+              "min": 5,
+              "max": 360,
+              "step": 5,
+              "sm": 12,
+              "md": 4
+            }
+          }
+        },
+        "tabCustomRules": {
+          "type": "panel",
+          "label": {
+            "en": "Per-Adapter Overrides & Blacklist",
+            "de": "Adapter-Ausnahmen & Blacklist"
+          },
+          "items": {
+            "headerRules": {
+              "type": "header",
+              "text": {
+                "en": "Individual Adapter Configurations",
+                "de": "Individuelle Adapter-Konfiguration"
+              }
+            },
+            "infoRules": {
+              "type": "staticText",
+              "text": {
+                "en": "Here you can define custom limits for specific memory-heavy adapters, or completely exclude sensitive adapters (e.g. alarm systems) from automatic restarts.",
+                "de": "Hier können für speicherintensive Adapter individuelle Schwellenwerte hinterlegt oder kritische Adapter (z.B. Alarmanlagen) komplett von automatischen Neustarts ausgeschlossen werden."
+              }
+            },
+            "customRules": {
+              "type": "table",
+              "items": [
+                {
+                  "type": "text",
+                  "attr": "adapter",
+                  "title": {
+                    "en": "Adapter Instance (e.g. shelly.0)",
+                    "de": "Adapter-Instanz (z.B. shelly.0)"
+                  },
+                  "width": "25%"
+                },
+                {
+                  "type": "checkbox",
+                  "attr": "active",
+                  "title": {
+                    "en": "Watchdog Active",
+                    "de": "Überwachung aktiv"
+                  },
+                  "width": "15%"
+                },
+                {
+                  "type": "number",
+                  "attr": "customMaxMB",
+                  "title": {
+                    "en": "Custom Max MB (0 = default)",
+                    "de": "Eigenes Limit MB (0 = Standard)"
+                  },
+                  "width": "20%"
+                },
+                {
+                  "type": "number",
+                  "attr": "customFactor",
+                  "title": {
+                    "en": "Custom Factor (0 = default)",
+                    "de": "Eigener Faktor (0 = Standard)"
+                  },
+                  "width": "20%"
+                },
+                {
+                  "type": "text",
+                  "attr": "notes",
+                  "title": {
+                    "en": "Notes",
+                    "de": "Notizen"
+                  },
+                  "width": "20%"
+                }
+              ]
+            }
+          }
+        },
+        "tabNotifications": {
+          "type": "panel",
+          "label": {
+            "en": "Notifications",
+            "de": "Benachrichtigungen"
+          },
+          "items": {
+            "headerNotify": {
+              "type": "header",
+              "text": {
+                "en": "Alerts on Action",
+                "de": "Meldungen bei Eingriffen"
+              }
+            },
+            "notifyOnRestart": {
+              "type": "checkbox",
+              "label": {
+                "en": "Notify on Automatic Adapter Restart",
+                "de": "Nachricht bei automatischem Adapter-Neustart"
+              },
+              "sm": 12,
+              "md": 6
+            },
+            "notifyOnLimitReached": {
+              "type": "checkbox",
+              "label": {
+                "en": "Notify when Daily Limit is reached",
+                "de": "Nachricht bei Erreichen des Tages-Budgets"
+              },
+              "sm": 12,
+              "md": 6
+            },
+            "dividerService": {
+              "type": "divider"
+            },
+            "notifyService": {
+              "type": "select",
+              "label": {
+                "en": "Notification Service",
+                "de": "Benachrichtigungs-Dienst"
+              },
+              "options": [
+                {
+                  "value": "none",
+                  "label": {
+                    "en": "None (Log only)",
+                    "de": "Keiner (nur Log)"
+                  }
+                },
+                {
+                  "value": "pushover",
+                  "label": {
+                    "en": "Pushover",
+                    "de": "Pushover"
+                  }
+                },
+                {
+                  "value": "telegram",
+                  "label": {
+                    "en": "Telegram",
+                    "de": "Telegram"
+                  }
+                },
+                {
+                  "value": "email",
+                  "label": {
+                    "en": "E-Mail",
+                    "de": "E-Mail"
+                  }
+                }
+              ],
+              "sm": 12,
+              "md": 4
+            },
+            "notifyInstance": {
+              "type": "text",
+              "label": {
+                "en": "Service Instance",
+                "de": "Dienst-Instanz"
+              },
+              "help": {
+                "en": "e.g. pushover.0 or telegram.0",
+                "de": "z.B. pushover.0 oder telegram.0"
+              },
+              "hidden": "data.notifyService === 'none'",
+              "sm": 12,
+              "md": 4
+            },
+            "notifyCustomState": {
+              "type": "text",
+              "label": {
+                "en": "Alternative Custom State ID",
+                "de": "Alternativer Datenpunkt für Meldung"
+              },
+              "help": {
+                "en": "Optional: Write alert message into a custom state (e.g. 0_userdata.0.alerts.message)",
+                "de": "Optional: Textmeldung in einen beliebigen Datenpunkt schreiben"
+              },
+              "sm": 12,
+              "md": 4
+            }
+          }
+        }
+      }
+    }
+  }
+}

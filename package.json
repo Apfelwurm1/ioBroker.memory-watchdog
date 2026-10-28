@@ -1,0 +1,59 @@
+{
+  "name": "iobroker.memory-watchdog",
+  "version": "0.1.0",
+  "description": "Smart memory watchdog, baseline learner, and leak prevention for ioBroker adapter instances",
+  "author": {
+    "name": "bengel.bytes",
+    "email": "info@bengel.bytes"
+  },
+  "homepage": "https://github.com/bengel-bytes/ioBroker.memory-watchdog",
+  "license": "MIT",
+  "keywords": [
+    "iobroker",
+    "memory",
+    "watchdog",
+    "ram",
+    "leak",
+    "process",
+    "monitoring",
+    "performance"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/bengel-bytes/ioBroker.memory-watchdog.git"
+  },
+  "bugs": {
+    "url": "https://github.com/bengel-bytes/ioBroker.memory-watchdog/issues"
+  },
+  "main": "main.js",
+  "dependencies": {
+    "@iobroker/adapter-core": "^3.2.3"
+  },
+  "devDependencies": {
+    "@alcalzone/release-script": "^3.8.0",
+    "@alcalzone/release-script-plugin-iobroker": "^3.7.2",
+    "@alcalzone/release-script-plugin-license": "^3.7.0",
+    "@alcalzone/release-script-plugin-manual-review": "^3.7.0",
+    "@iobroker/adapter-dev": "^1.4.0",
+    "@iobroker/testing": "^5.0.3",
+    "@types/chai": "^4.3.16",
+    "@types/chai-as-promised": "^7.1.8",
+    "@types/mocha": "^10.0.6",
+    "@types/node": "^20.14.9",
+    "chai": "^4.4.1",
+    "chai-as-promised": "^7.1.2",
+    "eslint": "^8.57.0",
+    "mocha": "^10.4.0"
+  },
+  "scripts": {
+    "test:package": "mocha test/package --exit",
+    "test:unit": "mocha test/unit --exit",
+    "test:integration": "mocha test/integration --exit",
+    "test": "npm run test:package && npm run test:unit",
+    "check": "eslint .",
+    "release": "release-script"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
