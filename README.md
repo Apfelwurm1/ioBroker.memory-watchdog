@@ -89,7 +89,7 @@ In größeren ioBroker-Installationen mit vielen Adaptern führen schleichende S
 
 ## Changelog
 ### 0.1.0 (2026-10-28)
-* (bengel.bytes) Initial public release
+* (Apfelwurm1) Initial public release
 * Dynamic baseline learning per adapter instance
 * Sustained load duration filter
 * Daily restart allowance / rate limit protection
@@ -111,7 +111,7 @@ In größeren ioBroker-Installationen mit vielen Adaptern führen schleichende S
 ## License
 MIT License
 
-Copyright (c) 2026 bengel.bytes
+Copyright (c) 2026 Apfelwurm1
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal

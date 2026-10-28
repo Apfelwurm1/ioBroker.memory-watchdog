@@ -45,7 +45,7 @@
       "zh-cn": "具有基线学习、动态系数限制、持续负载验证和重启预算的智能内存看门狗，可防止内存泄漏和服务器崩溃。"
     },
     "authors": [
-      "bengel.bytes"
+      "Apfelwurm1"
     ],
     "keywords": [
       "memory",
@@ -65,8 +65,8 @@
     "main": "main.js",
     "icon": "memory-watchdog.png",
     "enabled": true,
-    "extIcon": "https://raw.githubusercontent.com/bengel-bytes/ioBroker.memory-watchdog/main/admin/memory-watchdog.png",
-    "readme": "https://github.com/bengel-bytes/ioBroker.memory-watchdog/blob/main/README.md",
+    "extIcon": "https://raw.githubusercontent.com/Apfelwurm1/ioBroker.memory-watchdog/main/admin/memory-watchdog.png",
+    "readme": "https://github.com/Apfelwurm1/ioBroker.memory-watchdog/blob/main/README.md",
     "loglevel": "info",
     "mode": "daemon",
     "type": "utility",
