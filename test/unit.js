@@ -1,7 +1,15 @@
 'use strict';
 
 const { expect } = require('chai');
-const { sanitizeProcessArgs, escapeTelegramMarkdown, isFromToday } = require('../lib/helpers.js');
+const {
+    sanitizeProcessArgs,
+    escapeTelegramMarkdown,
+    isFromToday,
+    isCompactMode,
+    getCompactGroup,
+    shouldTriggerEmergencyWarn,
+    isProvisionalBaseline,
+} = require('../lib/helpers.js');
 
 describe('Helper unit tests', () => {
     describe('sanitizeProcessArgs', () => {
@@ -66,6 +74,73 @@ describe('Helper unit tests', () => {
         it('should return false for null or undefined', () => {
             expect(isFromToday(null)).to.be.false;
             expect(isFromToday(0)).to.be.false;
+        });
+    });
+
+    describe('isCompactMode', () => {
+        it('should treat compactMode state as primary authority when boolean', () => {
+            expect(isCompactMode(true, { runAsCompactMode: false })).to.be.true;
+            expect(isCompactMode(false, { runAsCompactMode: true })).to.be.false;
+        });
+
+        it('should fallback to common.runAsCompactMode when state is null/undefined', () => {
+            expect(isCompactMode(null, { runAsCompactMode: true })).to.be.true;
+            expect(isCompactMode(undefined, { runAsCompactMode: false })).to.be.false;
+        });
+
+        it('should return false when neither is set', () => {
+            expect(isCompactMode(null, null)).to.be.false;
+            expect(isCompactMode(undefined, {})).to.be.false;
+        });
+    });
+
+    describe('getCompactGroup', () => {
+        it('should preserve group 0 for controller process', () => {
+            expect(getCompactGroup({ compactGroup: 0 })).to.equal(0);
+        });
+
+        it('should return defined group number', () => {
+            expect(getCompactGroup({ compactGroup: 2 })).to.equal(2);
+        });
+
+        it('should default to 1 when undefined or null', () => {
+            expect(getCompactGroup(null)).to.equal(1);
+            expect(getCompactGroup({})).to.equal(1);
+        });
+    });
+
+    describe('shouldTriggerEmergencyWarn (hysteresis)', () => {
+        const now = 1000000;
+        const oneHour = 3600000;
+
+        it('should trigger on first alert when lastWarnTs is 0', () => {
+            expect(shouldTriggerEmergencyWarn(now, 0, 0, 140)).to.be.true;
+        });
+
+        it('should suppress alert during cooldown if memory drop is insignificant', () => {
+            expect(shouldTriggerEmergencyWarn(now + 60000, now, 140, 135)).to.be.false;
+        });
+
+        it('should trigger alert during cooldown if memory drops by >= 25MB', () => {
+            expect(shouldTriggerEmergencyWarn(now + 60000, now, 140, 110)).to.be.true;
+        });
+
+        it('should trigger alert once cooldown expires', () => {
+            expect(shouldTriggerEmergencyWarn(now + oneHour + 1000, now, 140, 140)).to.be.true;
+        });
+    });
+
+    describe('isProvisionalBaseline', () => {
+        it('should return true when uptime > 1800s (30m)', () => {
+            expect(isProvisionalBaseline(1801)).to.be.true;
+            expect(isProvisionalBaseline(7200)).to.be.true;
+        });
+
+        it('should return false on fresh cold start (<= 1800s or null)', () => {
+            expect(isProvisionalBaseline(1800)).to.be.false;
+            expect(isProvisionalBaseline(60)).to.be.false;
+            expect(isProvisionalBaseline(null)).to.be.false;
+            expect(isProvisionalBaseline(undefined)).to.be.false;
         });
     });
 });

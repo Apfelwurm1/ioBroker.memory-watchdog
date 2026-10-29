@@ -1,8 +1,21 @@
 {
   "common": {
     "name": "memory-watchdog",
-    "version": "0.1.6",
+    "version": "0.1.7",
     "news": {
+      "0.1.7": {
+        "en": "Authoritative compactMode state detection, preserve compactGroup 0, dynamic compact sync, reset emergency hysteresis upon RAM recovery, throttled compact warnings, pure helper modularization, integration test suite and Node 20+ requirement",
+        "de": "Massgebliche compactMode State-Pruefung, Erhalt von compactGroup 0, dynamischer Compact-Abgleich, Hysterese-Reset bei RAM-Erholung, gedrosselte Compact-Warnungen, ausgelagerte Hilfsfunktionen, Integrationstests und Node 20+ Anforderung",
+        "ru": "Авторитетная проверка compactMode, сохранение compactGroup 0, сброс гистерезиса при восстановлении RAM, тесты интеграции и требование Node 20+",
+        "pt": "Deteção autoritária de compactMode, preservação do grupo 0, redefinição da histerese na recuperação da RAM, testes de integração e requisito do Node 20+",
+        "nl": "Gaghebbende compactMode controle, behoud compactGroup 0, hysterese reset bij RAM herstel, integratietesten en Node 20+ vereiste",
+        "fr": "Vérification compactMode faisant autorité, conservation compactGroup 0, réinitialisation hystérésis lors de la récupération RAM, tests intégration et Node 20+",
+        "it": "Verifica compactMode autorevole, conservazione compactGroup 0, ripristino isteresi al recupero della RAM, test integrazione e requisito Node 20+",
+        "es": "Verificación compactMode autoritativa, preservación de compactGroup 0, restablecimiento histéresis al recuperar RAM, pruebas de integración y requisito Node 20+",
+        "pl": "Autorytatywna weryfikacja compactMode, zachowanie compactGroup 0, reset histerezy po odzyskaniu RAM, testy integracyjne i wymóg Node 20+",
+        "uk": "Авторитетна перевірка compactMode, збереження compactGroup 0, скидання гістерезису після відновлення RAM, інтеграційні тести та вимога Node 20+",
+        "zh-cn": "权威的 compactMode 状态检测、保留 compactGroup 0、动态紧凑模式同步、RAM 恢复时重置滞后、集成测试和 Node 20+ 要求"
+      },
       "0.1.6": {
         "en": "Detection of compact mode instances, pending restarts ownership validation with obj.from, low RAM alert hysteresis, configurable javascript exclusion and admin jsonConfig header fixes",
         "de": "Erkennung von Compact-Mode-Instanzen, Ownership-Pruefung fuer pendingRestarts ueber obj.from, Notfall-Warnung Hysterese, konfigurierbarer JavaScript-Ausschluss und jsonConfig Header-Fixes",

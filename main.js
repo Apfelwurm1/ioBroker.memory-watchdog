@@ -9,7 +9,15 @@ const path = require('path');
 const os = require('os');
 const { execFile } = require('child_process');
 const utils = require('@iobroker/adapter-core');
-const { escapeTelegramMarkdown, sanitizeProcessArgs, isFromToday } = require('./lib/helpers.js');
+const {
+    escapeTelegramMarkdown,
+    sanitizeProcessArgs,
+    isFromToday,
+    isCompactMode,
+    getCompactGroup,
+    shouldTriggerEmergencyWarn,
+    isProvisionalBaseline,
+} = require('./lib/helpers.js');
 
 class MemoryWatchdog extends utils.Adapter {
     /**
@@ -409,9 +417,7 @@ class MemoryWatchdog extends utils.Adapter {
         let isProvisional = false;
         try {
             const uptimeState = await this.getForeignStateAsync(`system.adapter.${instanceId}.uptime`);
-            if (uptimeState && typeof uptimeState.val === 'number' && uptimeState.val > 1800) {
-                isProvisional = true;
-            }
+            isProvisional = isProvisionalBaseline(uptimeState ? uptimeState.val : null);
         } catch (ue) {
             // Ignore uptime fetch error
         }
@@ -420,21 +426,9 @@ class MemoryWatchdog extends utils.Adapter {
         let compactGroup = 1;
         try {
             const instObj = await this.getForeignObjectAsync(`system.adapter.${instanceId}`);
-            if (instObj && instObj.common) {
-                if (instObj.common.runAsCompactMode) {
-                    isCompact = true;
-                    compactGroup = instObj.common.compactGroup || 1;
-                }
-            }
-            if (!isCompact) {
-                const compactState = await this.getForeignStateAsync(`system.adapter.${instanceId}.compactMode`);
-                if (compactState && compactState.val === true) {
-                    isCompact = true;
-                    if (instObj && instObj.common && instObj.common.compactGroup) {
-                        compactGroup = instObj.common.compactGroup;
-                    }
-                }
-            }
+            const compactState = await this.getForeignStateAsync(`system.adapter.${instanceId}.compactMode`);
+            isCompact = isCompactMode(compactState ? compactState.val : null, instObj ? instObj.common : null);
+            compactGroup = getCompactGroup(instObj ? instObj.common : null);
         } catch (ce) {
             // Ignore compact check error
         }
@@ -511,11 +505,26 @@ class MemoryWatchdog extends utils.Adapter {
                 // Unconditionally ensure state datapoints exist under adapters.<instanceId>.*
                 await this.initAdapterStates(instanceId);
 
+                // Dynamically sync compact mode status for active adapters
+                let data = this.adapterData.get(instanceId);
+                if (data) {
+                    try {
+                        const instObj = await this.getForeignObjectAsync(`system.adapter.${instanceId}`);
+                        const compactState = await this.getForeignStateAsync(`system.adapter.${instanceId}.compactMode`);
+                        data.isCompact = isCompactMode(compactState ? compactState.val : null, instObj ? instObj.common : null);
+                        data.compactGroup = getCompactGroup(instObj ? instObj.common : null);
+                        if (data.isCompact) {
+                            await this.setStateAsync(`adapters.${instanceId}.status`, 'compact', true);
+                        }
+                    } catch (e) {
+                        // Ignore
+                    }
+                }
+
                 // Fetch current memRss if available
                 const memState = await this.getForeignStateAsync(`system.adapter.${instanceId}.memRss`);
                 if (memState && memState.val && typeof memState.val === 'number' && memState.val > 0) {
                     const mem = Math.round(memState.val);
-                    const data = this.adapterData.get(instanceId);
                     if (!data || data.startRss === 0) {
                         await this.createAdapterEntry(instanceId, mem, custom);
                     }
@@ -777,6 +786,10 @@ class MemoryWatchdog extends utils.Adapter {
      * @returns {boolean}
      */
     canRestart(instanceId, data, isEmergency = false) {
+        if (!data || data.isCompact) {
+            return false;
+        }
+
         if (this.restarting.has(instanceId)) {
             return false;
         }
@@ -839,9 +852,12 @@ class MemoryWatchdog extends utils.Adapter {
             // 4. Emergency Free-RAM protection check
             // Surgical approach: Identify the single absolute largest active memory consumer that is actually inflated.
             if (this.config.emergencyFreeRamEnabled && freeMemMB < (this.config.emergencyFreeRamMinMB || 150)) {
-                const warnCooldownMs = 60 * 60 * 1000; // 1 hour hysteresis
-                const significantDrop = (this.lastEmergencyWarnMB - freeMemMB) >= 25;
-                const shouldLogWarning = (now - this.lastEmergencyWarnTs >= warnCooldownMs) || significantDrop;
+                const shouldLogWarning = shouldTriggerEmergencyWarn(
+                    now,
+                    this.lastEmergencyWarnTs,
+                    this.lastEmergencyWarnMB,
+                    freeMemMB,
+                );
 
                 if (shouldLogWarning) {
                     this.lastEmergencyWarnTs = now;
@@ -904,6 +920,10 @@ class MemoryWatchdog extends utils.Adapter {
                         }
                     }
                 }
+            } else {
+                // Reset emergency hysteresis when free RAM returns to healthy levels
+                this.lastEmergencyWarnTs = 0;
+                this.lastEmergencyWarnMB = 0;
             }
 
             const minCheckAgeMs = (this.config.minCheckAgeMin || 10) * 60 * 1000;
@@ -953,12 +973,18 @@ class MemoryWatchdog extends utils.Adapter {
                             const floodMsg = `[State-Flood Alert] [${instanceId}] is emitting ${ratePerSec} events/sec for ${data.floodCycles} consecutive cycles (threshold: ${effFloodThreshold})`;
                             this.log.warn(floodMsg);
 
-                            if (this.config.floodAction === 'restart' && this.canRestart(instanceId, data, false)) {
-                                await this.restartAdapter(
-                                    instanceId,
-                                    `Sustained state-flood protection triggered (${ratePerSec} events/sec)`,
-                                    data,
-                                );
+                            if (this.config.floodAction === 'restart') {
+                                if (this.canRestart(instanceId, data, false)) {
+                                    await this.restartAdapter(
+                                        instanceId,
+                                        `Sustained state-flood protection triggered (${ratePerSec} events/sec)`,
+                                        data,
+                                    );
+                                } else if (data.isCompact) {
+                                    this.log.warn(
+                                        `[State-Flood Alert] [${instanceId}] Restart suppressed because instance runs in compact group ${data.compactGroup ?? 1}.`,
+                                    );
+                                }
                             }
                         }
                     } else if (data) {
@@ -998,9 +1024,26 @@ class MemoryWatchdog extends utils.Adapter {
                 if (data.isCompact) {
                     await this.setStateAsync(`adapters.${instanceId}.status`, 'compact', true);
                     if (currentMem >= effectiveMaxMB) {
-                        this.log.warn(
-                            `[Compact Mode] [${instanceId}] Memory high (${currentMem} MB >= ${effectiveMaxMB} MB), but instance runs in compact group ${data.compactGroup || 1}. Automatic restart suppressed to protect compact group.`,
-                        );
+                        const compactWarnCooldownMs = 60 * 60 * 1000;
+                        const memGrowth = currentMem - (data.lastCompactWarnMem || 0);
+                        const shouldWarn =
+                            !data.lastCompactWarnTs ||
+                            (now - data.lastCompactWarnTs >= compactWarnCooldownMs) ||
+                            (memGrowth >= 25);
+
+                        if (shouldWarn) {
+                            data.lastCompactWarnTs = now;
+                            data.lastCompactWarnMem = currentMem;
+                            this.log.warn(
+                                `[Compact Mode] [${instanceId}] Memory high (${currentMem} MB >= ${effectiveMaxMB} MB), but instance runs in compact group ${data.compactGroup ?? 1}. Automatic restart suppressed to protect compact group.`,
+                            );
+                        } else {
+                            this.log.debug(
+                                `[Compact Mode Throttled] [${instanceId}] Memory remains high (${currentMem} MB). Log throttled.`,
+                            );
+                        }
+                    } else {
+                        data.lastCompactWarnTs = 0;
                     }
                     continue;
                 }
@@ -1326,12 +1369,25 @@ class MemoryWatchdog extends utils.Adapter {
                                 data.baselineProvisional = false;
                                 data.lastOutputTs = Date.now();
 
+                                try {
+                                    const instObj = await this.getForeignObjectAsync(`system.adapter.${instanceId}`);
+                                    const compactState = await this.getForeignStateAsync(`system.adapter.${instanceId}.compactMode`);
+                                    data.isCompact = isCompactMode(compactState ? compactState.val : null, instObj ? instObj.common : null);
+                                    data.compactGroup = getCompactGroup(instObj ? instObj.common : null);
+                                } catch (e) {
+                                    // Ignore
+                                }
+
                                 await this.initAdapterStates(instanceId);
                                 await this.setStateAsync(`adapters.${instanceId}.baselineMB`, mem, true);
                                 await this.setStateAsync(`adapters.${instanceId}.currentMB`, mem, true);
                                 await this.setStateAsync(`adapters.${instanceId}.ratio`, 1.0, true);
                                 await this.setStateAsync(`adapters.${instanceId}.highCycles`, 0, true);
-                                await this.setStateAsync(`adapters.${instanceId}.status`, 'ok', true);
+                                if (data.isCompact) {
+                                    await this.setStateAsync(`adapters.${instanceId}.status`, 'compact', true);
+                                } else {
+                                    await this.setStateAsync(`adapters.${instanceId}.status`, 'ok', true);
+                                }
                                 this.log.info(`[${instanceId}] Learned fresh baseline memory after cold start: ${mem} MB`);
                             }
                             await this.updateStatsDatapoint();

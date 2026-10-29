@@ -87,7 +87,32 @@ In größeren ioBroker-Installationen mit vielen Adaptern führen schleichende S
 
 ---
 
+### Compact Mode & Recovery Behavior
+- **Compact Mode Protection**: When monitored adapter instances run in ioBroker compact mode (`system.adapter.X.compactMode === true` or configured via `runAsCompactMode`), multiple instances share a single Node.js OS process. Automatic restarts for such instances are deliberately suppressed (status `compact`) to prevent terminating the shared process or innocent sibling adapters. High-memory warnings are throttled to once per hour unless memory grows significantly.
+- **Pending Restarts & Ownership Verification (`obj.from`)**: If the watchdog initiates an adapter restart and the host or watchdog crashes before the adapter can be re-enabled, `recoverPendingRestarts()` runs on startup. It checks `obj.from`: if the disabling entity was the watchdog (`system.adapter.memory-watchdog.0`), it safely re-enables the adapter. If an administrator, another tool, or an adapter update (e.g. `system.host.X.cli`) modified the adapter in the meantime, the watchdog leaves the adapter disabled and sends a push notification so the user is aware.
+
+---
+
 ## Changelog
+### 0.1.7 (2026-10-29)
+* (Apfelwurm1) Compact: State `compactMode` is primary authority for compact detection with `runAsCompactMode` fallback
+* (Apfelwurm1) Compact: Preserve group 0 (controller process) using nullish coalescing `compactGroup ?? 1`
+* (Apfelwurm1) Compact: Dynamic compact mode status sync on every scan cycle and cold start
+* (Apfelwurm1) Compact: Throttle high-memory warning logs to prevent log spam
+* (Apfelwurm1) Safety: canRestart unconditionally returns false for compact instances across flood, memory, and emergency checks
+* (Apfelwurm1) Telemetry: Reset emergency RAM warning hysteresis immediately when free RAM recovers to healthy levels
+* (Apfelwurm1) Architecture: Modularize decision helpers into lib/helpers.js and expand unit test suite to 24 tests
+* (Apfelwurm1) Testing: Integration test suite with `@iobroker/testing` verifying clean startup and lifecycle
+* (Apfelwurm1) Engine: Drop end-of-life Node 18, require Node >= 20.0.0
+
+### 0.1.6 (2026-10-29)
+* (Apfelwurm1) Compact: Detect monitored instances in compact mode and assign status `compact`
+* (Apfelwurm1) Safety: Ownership validation via `obj.from` in pendingRestarts recovery
+* (Apfelwurm1) Alerts: Hysteresis for emergency low-RAM alerts
+* (Apfelwurm1) Config: Configurable JavaScript engine exclusion (`ignoreJavascriptAdapters`)
+* (Apfelwurm1) Admin: Add required `size: 5` property to all jsonConfig headers
+* (Apfelwurm1) Dependencies: Raise minimum js-controller dependency to >= 6.0.11
+
 ### 0.1.5 (2026-10-29)
 * (Apfelwurm1) Safety: Timestamped info.pendingRestarts with 10-minute expiry window prevents unprompted re-enabling
 * (Apfelwurm1) Security: Extended credentials masking regex covering passphrase, credentials and preserving Bearer quotes
