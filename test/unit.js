@@ -8,6 +8,8 @@ const {
     isCompactMode,
     getCompactGroup,
     shouldTriggerEmergencyWarn,
+    shouldResetEmergencyWarn,
+    shouldResetCompactWarn,
     isProvisionalBaseline,
 } = require('../lib/helpers.js');
 
@@ -141,6 +143,31 @@ describe('Helper unit tests', () => {
             expect(isProvisionalBaseline(60)).to.be.false;
             expect(isProvisionalBaseline(null)).to.be.false;
             expect(isProvisionalBaseline(undefined)).to.be.false;
+        });
+    });
+
+    describe('shouldResetEmergencyWarn (recovery hysteresis band)', () => {
+        it('should return false when free RAM is still below or barely above threshold', () => {
+            expect(shouldResetEmergencyWarn(145, 150, 25)).to.be.false;
+            expect(shouldResetEmergencyWarn(155, 150, 25)).to.be.false;
+            expect(shouldResetEmergencyWarn(174, 150, 25)).to.be.false;
+        });
+
+        it('should return true once free RAM crosses threshold + delta margin (150 + 25 = 175 MB)', () => {
+            expect(shouldResetEmergencyWarn(175, 150, 25)).to.be.true;
+            expect(shouldResetEmergencyWarn(250, 150, 25)).to.be.true;
+        });
+    });
+
+    describe('shouldResetCompactWarn (recovery margin)', () => {
+        it('should return false when memory is above or barely below limit', () => {
+            expect(shouldResetCompactWarn(455, 450, 25)).to.be.false;
+            expect(shouldResetCompactWarn(440, 450, 25)).to.be.false;
+        });
+
+        it('should return true once memory drops below limit - margin (450 - 25 = 425 MB)', () => {
+            expect(shouldResetCompactWarn(425, 450, 25)).to.be.true;
+            expect(shouldResetCompactWarn(300, 450, 25)).to.be.true;
         });
     });
 });

@@ -94,6 +94,14 @@ In größeren ioBroker-Installationen mit vielen Adaptern führen schleichende S
 ---
 
 ## Changelog
+### 0.1.8 (2026-10-29)
+* (Apfelwurm1) Hysteresis: Require +25 MB recovery margin before resetting emergency RAM alerts to prevent boundary flapping
+* (Apfelwurm1) Compact: Require -25 MB recovery margin before resetting compact high-memory warning throttle
+* (Apfelwurm1) CI: Add explicit `npm run test:integration` step in GitHub Actions workflow for automated integration verification
+* (Apfelwurm1) Architecture: Consolidate compact mode detection and state reconciliation into `refreshCompactInfo` helper
+* (Apfelwurm1) State: Allow `compact` status to cleanly revert back to `ok` if an adapter is switched to standalone mode
+* (Apfelwurm1) Testing: Document exit code 11 explanation in integration test suite and expand unit tests to 28 passing cases
+
 ### 0.1.7 (2026-10-29)
 * (Apfelwurm1) Compact: State `compactMode` is primary authority for compact detection with `runAsCompactMode` fallback
 * (Apfelwurm1) Compact: Preserve group 0 (controller process) using nullish coalescing `compactGroup ?? 1`

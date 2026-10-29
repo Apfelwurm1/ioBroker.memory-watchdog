@@ -1,8 +1,21 @@
 {
   "common": {
     "name": "memory-watchdog",
-    "version": "0.1.7",
+    "version": "0.1.8",
     "news": {
+      "0.1.8": {
+        "en": "Hysteresis recovery margins for emergency RAM and compact warnings, CI integration test workflow step, unified refreshCompactInfo helper, and reversible compact status",
+        "de": "Hysterese-Erholungsband fuer Notfall-RAM und Compact-Warnungen, CI Integrationstest-Schritt, vereinheitlichte refreshCompactInfo Methode und ruecksetzbarer Compact-Status",
+        "ru": "Полоса гистерезиса для предупреждений RAM и compact, шаг интеграционных тестов в CI, единый refreshCompactInfo",
+        "pt": "Margens de recuperação de histerese para RAM e avisos compactos, passo de teste de integração no CI, refreshCompactInfo unificado",
+        "nl": "Hysterese herstelmarge voor RAM en compact waarschuwingen, CI integratietest stap, uniforme refreshCompactInfo methode",
+        "fr": "Marge d'hystérésis pour les alertes RAM et compact, étape CI pour test d'intégration, méthode refreshCompactInfo unifiée",
+        "it": "Banda di isteresi per avvisi RAM e compact, step di test di integrazione in CI, metodo refreshCompactInfo unificato",
+        "es": "Banda de histéresis para alertas de RAM y compact, paso de prueba de integración en CI, método refreshCompactInfo unificado",
+        "pl": "Pasmo histerezy dla alertów RAM i compact, krok testów integracyjnych w CI, zunifikowana metoda refreshCompactInfo",
+        "uk": "Смуга гістерезису для попереджень RAM і compact, крок інтеграційних тестів у CI, уніфікований метод refreshCompactInfo",
+        "zh-cn": "紧急 RAM 和紧凑模式警报的滞后恢复裕度、CI 集成测试步骤、统一的 refreshCompactInfo 方法和可逆的紧凑状态"
+      },
       "0.1.7": {
         "en": "Authoritative compactMode state detection, preserve compactGroup 0, dynamic compact sync, reset emergency hysteresis upon RAM recovery, throttled compact warnings, pure helper modularization, integration test suite and Node 20+ requirement",
         "de": "Massgebliche compactMode State-Pruefung, Erhalt von compactGroup 0, dynamischer Compact-Abgleich, Hysterese-Reset bei RAM-Erholung, gedrosselte Compact-Warnungen, ausgelagerte Hilfsfunktionen, Integrationstests und Node 20+ Anforderung",

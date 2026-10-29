@@ -16,6 +16,8 @@ const {
     isCompactMode,
     getCompactGroup,
     shouldTriggerEmergencyWarn,
+    shouldResetEmergencyWarn,
+    shouldResetCompactWarn,
     isProvisionalBaseline,
 } = require('./lib/helpers.js');
 
@@ -413,15 +415,13 @@ class MemoryWatchdog extends utils.Adapter {
      * @param {any} [custom=null]
      * @returns {Promise<any>}
      */
-    async createAdapterEntry(instanceId, mem, custom = null) {
-        let isProvisional = false;
-        try {
-            const uptimeState = await this.getForeignStateAsync(`system.adapter.${instanceId}.uptime`);
-            isProvisional = isProvisionalBaseline(uptimeState ? uptimeState.val : null);
-        } catch (ue) {
-            // Ignore uptime fetch error
-        }
-
+    /**
+     * Refreshes compact mode detection for an instance and updates state accordingly
+     * @param {string} instanceId
+     * @param {any} [data=null]
+     * @returns {Promise<{ isCompact: boolean, compactGroup: number }>}
+     */
+    async refreshCompactInfo(instanceId, data = null) {
         let isCompact = false;
         let compactGroup = 1;
         try {
@@ -430,7 +430,39 @@ class MemoryWatchdog extends utils.Adapter {
             isCompact = isCompactMode(compactState ? compactState.val : null, instObj ? instObj.common : null);
             compactGroup = getCompactGroup(instObj ? instObj.common : null);
         } catch (ce) {
-            // Ignore compact check error
+            // Ignore object lookup error
+        }
+
+        if (data) {
+            const prevCompact = data.isCompact;
+            data.isCompact = isCompact;
+            data.compactGroup = compactGroup;
+
+            if (isCompact) {
+                await this.setStateAsync(`adapters.${instanceId}.status`, 'compact', true);
+            } else if (prevCompact) {
+                // If adapter switched from compact to standalone mode
+                await this.setStateAsync(`adapters.${instanceId}.status`, 'ok', true);
+            }
+        }
+
+        return { isCompact, compactGroup };
+    }
+
+    /**
+     * Creates or updates a monitored adapter entry, checking uptime for provisional status and compact mode
+     * @param {string} instanceId
+     * @param {number} mem
+     * @param {any} [custom=null]
+     * @returns {Promise<any>}
+     */
+    async createAdapterEntry(instanceId, mem, custom = null) {
+        let isProvisional = false;
+        try {
+            const uptimeState = await this.getForeignStateAsync(`system.adapter.${instanceId}.uptime`);
+            isProvisional = isProvisionalBaseline(uptimeState ? uptimeState.val : null);
+        } catch (ue) {
+            // Ignore uptime fetch error
         }
 
         const existing = this.adapterData.get(instanceId);
@@ -444,8 +476,8 @@ class MemoryWatchdog extends utils.Adapter {
             currentMem: mem,
             lastOutputTs: Date.now(),
             baselineProvisional: isProvisional,
-            isCompact: isCompact,
-            compactGroup: compactGroup,
+            isCompact: false,
+            compactGroup: 1,
             customConfig: custom || this.getCustomRule(instanceId),
         };
         this.adapterData.set(instanceId, data);
@@ -454,8 +486,9 @@ class MemoryWatchdog extends utils.Adapter {
         await this.setStateAsync(`adapters.${instanceId}.currentMB`, mem, true);
         await this.setStateAsync(`adapters.${instanceId}.ratio`, 1.0, true);
 
+        const { isCompact, compactGroup } = await this.refreshCompactInfo(instanceId, data);
+
         if (isCompact) {
-            await this.setStateAsync(`adapters.${instanceId}.status`, 'compact', true);
             this.log.info(
                 `[${instanceId}] Running in Compact Mode (group ${compactGroup}). Restart checks suppressed to protect shared group process.`,
             );
@@ -506,19 +539,9 @@ class MemoryWatchdog extends utils.Adapter {
                 await this.initAdapterStates(instanceId);
 
                 // Dynamically sync compact mode status for active adapters
-                let data = this.adapterData.get(instanceId);
+                const data = this.adapterData.get(instanceId);
                 if (data) {
-                    try {
-                        const instObj = await this.getForeignObjectAsync(`system.adapter.${instanceId}`);
-                        const compactState = await this.getForeignStateAsync(`system.adapter.${instanceId}.compactMode`);
-                        data.isCompact = isCompactMode(compactState ? compactState.val : null, instObj ? instObj.common : null);
-                        data.compactGroup = getCompactGroup(instObj ? instObj.common : null);
-                        if (data.isCompact) {
-                            await this.setStateAsync(`adapters.${instanceId}.status`, 'compact', true);
-                        }
-                    } catch (e) {
-                        // Ignore
-                    }
+                    await this.refreshCompactInfo(instanceId, data);
                 }
 
                 // Fetch current memRss if available
@@ -920,8 +943,8 @@ class MemoryWatchdog extends utils.Adapter {
                         }
                     }
                 }
-            } else {
-                // Reset emergency hysteresis when free RAM returns to healthy levels
+            } else if (shouldResetEmergencyWarn(freeMemMB, this.config.emergencyFreeRamMinMB || 150, 25)) {
+                // Reset emergency hysteresis once free RAM recovers with a healthy margin (threshold + 25 MB)
                 this.lastEmergencyWarnTs = 0;
                 this.lastEmergencyWarnMB = 0;
             }
@@ -1042,8 +1065,9 @@ class MemoryWatchdog extends utils.Adapter {
                                 `[Compact Mode Throttled] [${instanceId}] Memory remains high (${currentMem} MB). Log throttled.`,
                             );
                         }
-                    } else {
+                    } else if (shouldResetCompactWarn(currentMem, effectiveMaxMB, 25)) {
                         data.lastCompactWarnTs = 0;
+                        data.lastCompactWarnMem = 0;
                     }
                     continue;
                 }
@@ -1369,23 +1393,14 @@ class MemoryWatchdog extends utils.Adapter {
                                 data.baselineProvisional = false;
                                 data.lastOutputTs = Date.now();
 
-                                try {
-                                    const instObj = await this.getForeignObjectAsync(`system.adapter.${instanceId}`);
-                                    const compactState = await this.getForeignStateAsync(`system.adapter.${instanceId}.compactMode`);
-                                    data.isCompact = isCompactMode(compactState ? compactState.val : null, instObj ? instObj.common : null);
-                                    data.compactGroup = getCompactGroup(instObj ? instObj.common : null);
-                                } catch (e) {
-                                    // Ignore
-                                }
+                                await this.refreshCompactInfo(instanceId, data);
 
                                 await this.initAdapterStates(instanceId);
                                 await this.setStateAsync(`adapters.${instanceId}.baselineMB`, mem, true);
                                 await this.setStateAsync(`adapters.${instanceId}.currentMB`, mem, true);
                                 await this.setStateAsync(`adapters.${instanceId}.ratio`, 1.0, true);
                                 await this.setStateAsync(`adapters.${instanceId}.highCycles`, 0, true);
-                                if (data.isCompact) {
-                                    await this.setStateAsync(`adapters.${instanceId}.status`, 'compact', true);
-                                } else {
+                                if (!data.isCompact) {
                                     await this.setStateAsync(`adapters.${instanceId}.status`, 'ok', true);
                                 }
                                 this.log.info(`[${instanceId}] Learned fresh baseline memory after cold start: ${mem} MB`);
