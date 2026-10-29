@@ -1,8 +1,21 @@
 {
   "common": {
     "name": "memory-watchdog",
-    "version": "0.1.5",
+    "version": "0.1.6",
     "news": {
+      "0.1.6": {
+        "en": "Detection of compact mode instances, pending restarts ownership validation with obj.from, low RAM alert hysteresis, configurable javascript exclusion and admin jsonConfig header fixes",
+        "de": "Erkennung von Compact-Mode-Instanzen, Ownership-Pruefung fuer pendingRestarts ueber obj.from, Notfall-Warnung Hysterese, konfigurierbarer JavaScript-Ausschluss und jsonConfig Header-Fixes",
+        "ru": "Обнаружение экземпляров компактного режима, проверка obj.from для pendingRestarts, гистерезис предупреждений RAM, настраиваемое исключение javascript",
+        "pt": "Deteção de instâncias em modo compacto, validação obj.from para pendingRestarts, histerese de alertas de RAM, exclusão configurável de javascript",
+        "nl": "Detectie van compacte modus instanties, obj.from validatie voor pendingRestarts, RAM waarschuwing hysterese, configureerbare javascript uitsluiting",
+        "fr": "Détection des instances en mode compact, validation obj.from pour pendingRestarts, hystérésis d'alerte RAM, exclusion javascript configurable",
+        "it": "Rilevamento istanze in modalità compatta, convalida obj.from per pendingRestarts, isteresi avviso RAM, esclusione javascript configurabile",
+        "es": "Detección de instancias en modo compacto, validación obj.from para pendingRestarts, histéresis de alerta de RAM, exclusión configurable de javascript",
+        "pl": "Wykrywanie instancji w trybie compact, walidacja obj.from dla pendingRestarts, histereza alertów RAM, konfigurowalne wykluczenie javascript",
+        "uk": "Виявлення екземплярів у компактному режимі, перевірка obj.from для pendingRestarts, гістерезис сповіщень RAM, настроюване виключення javascript",
+        "zh-cn": "检测紧凑模式实例、使用 obj.from 验证待处理重启所有权、低 RAM 警报滞后、可配置的 JavaScript 排除和 jsonConfig 修复"
+      },
       "0.1.5": {
         "en": "Timestamped pendingRestarts with 10m expiry check, initialize adapter states prior to memRss, enhanced passphrase and Bearer regex, and floodMigrated default true",
         "de": "PendingRestarts mit Zeitstempel und 10m Ablaufpruefung, Initialisierung der Adapter-States vor memRss, erweiterte Passphrase/Bearer-Regex und floodMigrated Standard true",
@@ -145,7 +158,7 @@
     },
     "dependencies": [
       {
-        "js-controller": ">=5.0.19"
+        "js-controller": ">=6.0.11"
       }
     ],
     "globalDependencies": [
@@ -167,6 +180,7 @@
     "restartCooldownMin": 60,
     "restartPauseSec": 4,
     "restartVerificationSec": 45,
+    "ignoreJavascriptAdapters": true,
     "emergencyFreeRamEnabled": true,
     "emergencyFreeRamMinMB": 150,
     "quietHoursEnabled": false,

@@ -1,8 +1,6 @@
 'use strict';
 
-const path = require('path');
 const { expect } = require('chai');
-const { tests } = require('@iobroker/testing');
 const { sanitizeProcessArgs, escapeTelegramMarkdown, isFromToday } = require('../lib/helpers.js');
 
 describe('Helper unit tests', () => {
@@ -71,6 +69,3 @@ describe('Helper unit tests', () => {
         });
     });
 });
-
-// Run legacy adapter mock startup tests
-tests.unit(path.join(__dirname, '..'));

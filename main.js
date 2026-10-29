@@ -41,6 +41,12 @@ class MemoryWatchdog extends utils.Adapter {
         /** @type {number} */
         this.lastEmergencyRestartTs = 0;
 
+        /** @type {number} Timestamp of last emergency warning log to prevent spamming */
+        this.lastEmergencyWarnTs = 0;
+
+        /** @type {number} System free memory at time of last emergency warning log */
+        this.lastEmergencyWarnMB = 0;
+
         /** @type {NodeJS.Timeout | null} */
         this.checkTimer = null;
 
@@ -144,7 +150,7 @@ class MemoryWatchdog extends utils.Adapter {
 
     /**
      * Recovers adapters that were left disabled due to an abrupt shutdown during restart.
-     * Only re-enables entries younger than 10 minutes to prevent overriding deliberate user disables.
+     * Verifies object ownership (obj.from) to guarantee user intent is never overwritten.
      */
     async recoverPendingRestarts() {
         try {
@@ -163,24 +169,43 @@ class MemoryWatchdog extends utils.Adapter {
                 }
 
                 const now = Date.now();
-                const maxAgeMs = 10 * 60 * 1000; // 10 minutes expiry window
 
                 for (const item of pending) {
                     if (!item || !item.id) continue;
                     const age = now - (item.ts || 0);
-                    if (age <= maxAgeMs) {
-                        try {
-                            await this.extendForeignObjectAsync(`system.adapter.${item.id}`, { common: { enabled: true } });
-                            this.log.info(
-                                `[Recovery] [${item.id}] Re-enabled successfully (pending age: ${Math.round(age / 1000)}s).`,
-                            );
-                        } catch (e) {
-                            this.log.error(`[Recovery] Failed to re-enable [${item.id}]: ${e}`);
+                    const instanceKey = `system.adapter.${item.id}`;
+
+                    try {
+                        const obj = await this.getForeignObjectAsync(instanceKey);
+                        if (!obj || !obj.common) {
+                            this.log.debug(`[Recovery] Instance [${instanceKey}] not found. Skipping.`);
+                            continue;
                         }
-                    } else {
-                        this.log.warn(
-                            `[Recovery] Expired pending restart for [${item.id}] (${Math.round(age / 60000)}m old > 10m). Skipping automatic re-enable.`,
-                        );
+
+                        if (obj.common.enabled === false) {
+                            const disabledByUs =
+                                obj.from === `system.adapter.${this.namespace}` ||
+                                obj.from === this.namespace;
+
+                            if (disabledByUs) {
+                                // Verified: The adapter was disabled by us for restart and no human or external process touched it.
+                                await this.extendForeignObjectAsync(instanceKey, { common: { enabled: true } });
+                                this.log.info(
+                                    `[Recovery] [${item.id}] Re-enabled successfully (verified disabled by ${obj.from}, pending age: ${Math.round(age / 1000)}s).`,
+                                );
+                            } else {
+                                // An external sender (e.g. admin or user) altered the state since our restart attempt.
+                                const warnMsg = `[Recovery] [${item.id}] remains disabled because it was modified by [${obj.from}] after watchdog restart attempt. Skipping automatic re-enable.`;
+                                this.log.warn(warnMsg);
+                                await this.sendNotification(
+                                    `⚠️ Watchdog Wiederherstellung: Adapter ${item.id} wurde nicht reaktiviert, da er nach dem Neustartversuch von ${obj.from} geändert wurde.`,
+                                );
+                            }
+                        } else {
+                            this.log.debug(`[Recovery] [${item.id}] is already running/enabled.`);
+                        }
+                    } catch (e) {
+                        this.log.error(`[Recovery] Failed to inspect/re-enable [${item.id}]: ${e}`);
                     }
                 }
                 this.pendingRestartsMap.clear();
@@ -374,7 +399,7 @@ class MemoryWatchdog extends utils.Adapter {
     }
 
     /**
-     * Creates or updates a monitored adapter entry, checking uptime for provisional status
+     * Creates or updates a monitored adapter entry, checking uptime for provisional status and compact mode
      * @param {string} instanceId
      * @param {number} mem
      * @param {any} [custom=null]
@@ -391,6 +416,29 @@ class MemoryWatchdog extends utils.Adapter {
             // Ignore uptime fetch error
         }
 
+        let isCompact = false;
+        let compactGroup = 1;
+        try {
+            const instObj = await this.getForeignObjectAsync(`system.adapter.${instanceId}`);
+            if (instObj && instObj.common) {
+                if (instObj.common.runAsCompactMode) {
+                    isCompact = true;
+                    compactGroup = instObj.common.compactGroup || 1;
+                }
+            }
+            if (!isCompact) {
+                const compactState = await this.getForeignStateAsync(`system.adapter.${instanceId}.compactMode`);
+                if (compactState && compactState.val === true) {
+                    isCompact = true;
+                    if (instObj && instObj.common && instObj.common.compactGroup) {
+                        compactGroup = instObj.common.compactGroup;
+                    }
+                }
+            }
+        } catch (ce) {
+            // Ignore compact check error
+        }
+
         const existing = this.adapterData.get(instanceId);
         const data = {
             startRss: mem,
@@ -402,6 +450,8 @@ class MemoryWatchdog extends utils.Adapter {
             currentMem: mem,
             lastOutputTs: Date.now(),
             baselineProvisional: isProvisional,
+            isCompact: isCompact,
+            compactGroup: compactGroup,
             customConfig: custom || this.getCustomRule(instanceId),
         };
         this.adapterData.set(instanceId, data);
@@ -409,7 +459,15 @@ class MemoryWatchdog extends utils.Adapter {
         await this.setStateAsync(`adapters.${instanceId}.baselineMB`, mem, true);
         await this.setStateAsync(`adapters.${instanceId}.currentMB`, mem, true);
         await this.setStateAsync(`adapters.${instanceId}.ratio`, 1.0, true);
-        await this.setStateAsync(`adapters.${instanceId}.status`, 'ok', true);
+
+        if (isCompact) {
+            await this.setStateAsync(`adapters.${instanceId}.status`, 'compact', true);
+            this.log.info(
+                `[${instanceId}] Running in Compact Mode (group ${compactGroup}). Restart checks suppressed to protect shared group process.`,
+            );
+        } else {
+            await this.setStateAsync(`adapters.${instanceId}.status`, 'ok', true);
+        }
 
         if (isProvisional) {
             this.log.info(
@@ -430,6 +488,8 @@ class MemoryWatchdog extends utils.Adapter {
             if (!states) return;
 
             let count = 0;
+            const ignoreJs = this.config.ignoreJavascriptAdapters !== false;
+
             for (const [id, state] of Object.entries(states)) {
                 const instanceId = id.replace('system.adapter.', '').replace('.alive', '');
                 const isAlive = Boolean(state && state.val);
@@ -437,8 +497,8 @@ class MemoryWatchdog extends utils.Adapter {
 
                 if (!isAlive) continue;
 
-                // Do not monitor ourselves or javascript engine directly
-                if (instanceId.startsWith(this.namespace) || instanceId.startsWith('javascript.')) continue;
+                // Do not monitor ourselves or javascript engine directly (if configured)
+                if (instanceId.startsWith(this.namespace) || (ignoreJs && (instanceId === 'javascript' || instanceId.startsWith('javascript.')))) continue;
 
                 // Check custom blacklist
                 const { custom } = this.getLimits(instanceId);
@@ -673,7 +733,9 @@ class MemoryWatchdog extends utils.Adapter {
                 const ratio = data.startRss ? parseFloat((data.currentMem / data.startRss).toFixed(2)) : 1.0;
 
                 let status = 'ok';
-                if (data.silentFreeze) {
+                if (data.isCompact) {
+                    status = 'compact';
+                } else if (data.silentFreeze) {
                     status = 'silent_freeze';
                 } else if (data.restartsToday >= maxDaily) {
                     status = 'limit_reached';
@@ -777,14 +839,28 @@ class MemoryWatchdog extends utils.Adapter {
             // 4. Emergency Free-RAM protection check
             // Surgical approach: Identify the single absolute largest active memory consumer that is actually inflated.
             if (this.config.emergencyFreeRamEnabled && freeMemMB < (this.config.emergencyFreeRamMinMB || 150)) {
-                this.log.warn(
-                    `🚨 EMERGENCY: Available system RAM is dangerously low (${freeMemMB} MB < ${this.config.emergencyFreeRamMinMB || 150} MB)! Evaluating largest active memory consumer...`,
-                );
+                const warnCooldownMs = 60 * 60 * 1000; // 1 hour hysteresis
+                const significantDrop = (this.lastEmergencyWarnMB - freeMemMB) >= 25;
+                const shouldLogWarning = (now - this.lastEmergencyWarnTs >= warnCooldownMs) || significantDrop;
+
+                if (shouldLogWarning) {
+                    this.lastEmergencyWarnTs = now;
+                    this.lastEmergencyWarnMB = freeMemMB;
+                    this.log.warn(
+                        `🚨 EMERGENCY: Available system RAM is dangerously low (${freeMemMB} MB < ${this.config.emergencyFreeRamMinMB || 150} MB)! Evaluating largest active memory consumer...`,
+                    );
+                } else {
+                    this.log.debug(
+                        `[RAM Emergency Hysteresis] Available system RAM remains low (${freeMemMB} MB). Warning log throttled.`,
+                    );
+                }
 
                 let topInstance = null;
                 let topMemory = 0;
 
                 for (const [instId, data] of this.adapterData.entries()) {
+                    if (data.isCompact) continue; // Never restart a compact instance in emergency RAM recovery
+
                     const isAlive = Boolean(aliveStates[`system.adapter.${instId}.alive`]?.val);
                     if (!isAlive) continue;
 
@@ -815,13 +891,17 @@ class MemoryWatchdog extends utils.Adapter {
                         this.log.error(emergencyReason);
                         await this.restartAdapter(topInstance, emergencyReason, topData, true);
                     } else if (!isInflated) {
-                        this.log.warn(
-                            `[RAM Emergency] Available RAM is critically low (${freeMemMB} MB), but largest adapter [${topInstance}] (${topMemory} MB) is healthy (ratio: ${ratio.toFixed(2)}x). Skipping restart to prevent affecting innocent services.`,
-                        );
+                        if (shouldLogWarning) {
+                            this.log.warn(
+                                `[RAM Emergency] Available RAM is critically low (${freeMemMB} MB), but largest adapter [${topInstance}] (${topMemory} MB) is healthy (ratio: ${ratio.toFixed(2)}x). Skipping restart to prevent affecting innocent services.`,
+                            );
+                        }
                     } else {
-                        this.log.warn(
-                            `[RAM Emergency] Available RAM is critically low (${freeMemMB} MB), but largest consumer [${topInstance}] (${topMemory} MB) is on restart cooldown. No secondary adapters will be affected.`,
-                        );
+                        if (shouldLogWarning) {
+                            this.log.warn(
+                                `[RAM Emergency] Available RAM is critically low (${freeMemMB} MB), but largest consumer [${topInstance}] (${topMemory} MB) is on restart cooldown. No secondary adapters will be affected.`,
+                            );
+                        }
                     }
                 }
             }
@@ -835,6 +915,7 @@ class MemoryWatchdog extends utils.Adapter {
             // Calculate rate divisor based on controller statisticsInterval (default 15s)
             const statsSec = Math.max(1, (this.statisticsInterval || 15000) / 1000);
             const defaultFloodThreshold = this.config.floodThresholdEventsPerSec || 250;
+            const ignoreJs = this.config.ignoreJavascriptAdapters !== false;
 
             for (const [id, aliveState] of Object.entries(aliveStates)) {
                 const instanceId = id.replace('system.adapter.', '').replace('.alive', '');
@@ -842,7 +923,7 @@ class MemoryWatchdog extends utils.Adapter {
                 this.aliveCache.set(instanceId, isAlive);
 
                 if (!isAlive) continue;
-                if (instanceId.startsWith(this.namespace) || instanceId.startsWith('javascript.')) continue;
+                if (instanceId.startsWith(this.namespace) || (ignoreJs && (instanceId === 'javascript' || instanceId.startsWith('javascript.')))) continue;
 
                 const { custom, effectiveFactor, effectiveMaxMB, customFloodThreshold } = this.getLimits(instanceId);
                 if (custom && custom.active === false) continue;
@@ -913,6 +994,16 @@ class MemoryWatchdog extends utils.Adapter {
                 const ratio = parseFloat((currentMem / (data.startRss || 1)).toFixed(2));
                 await this.setStateAsync(`adapters.${instanceId}.currentMB`, currentMem, true);
                 await this.setStateAsync(`adapters.${instanceId}.ratio`, ratio, true);
+
+                if (data.isCompact) {
+                    await this.setStateAsync(`adapters.${instanceId}.status`, 'compact', true);
+                    if (currentMem >= effectiveMaxMB) {
+                        this.log.warn(
+                            `[Compact Mode] [${instanceId}] Memory high (${currentMem} MB >= ${effectiveMaxMB} MB), but instance runs in compact group ${data.compactGroup || 1}. Automatic restart suppressed to protect compact group.`,
+                        );
+                    }
+                    continue;
+                }
 
                 // Skip check if adapter is still in startup grace period
                 if (Date.now() - data.startedAt < minCheckAgeMs) continue;
@@ -1203,7 +1294,8 @@ class MemoryWatchdog extends utils.Adapter {
     async onStateChange(id, state) {
         if (id.endsWith('.alive')) {
             const instanceId = id.replace('system.adapter.', '').replace('.alive', '');
-            if (instanceId.startsWith(this.namespace) || instanceId.startsWith('javascript.')) return;
+            const ignoreJs = this.config.ignoreJavascriptAdapters !== false;
+            if (instanceId.startsWith(this.namespace) || (ignoreJs && (instanceId === 'javascript' || instanceId.startsWith('javascript.')))) return;
 
             const isAlive = Boolean(state && state.val);
             const prevAlive = this.aliveCache.get(instanceId);

@@ -11,6 +11,7 @@
       "items": {
         "headerGlobal": {
           "type": "header",
+          "size": 5,
           "text": {
             "en": "Watchdog Activation & Timing",
             "de": "Wächter-Aktivierung & Zeitabstände"
@@ -62,6 +63,7 @@
         },
         "headerLimits": {
           "type": "header",
+          "size": 5,
           "text": {
             "en": "Thresholds & Limits",
             "de": "Schwellenwerte & Limits"
@@ -120,6 +122,7 @@
         },
         "headerSafety": {
           "type": "header",
+          "size": 5,
           "text": {
             "en": "Safety Filters & Cloud Protection",
             "de": "Sicherheits-Filter & Cloud-Schutz"
@@ -189,11 +192,26 @@
           "sm": 12,
           "md": 4
         },
+        "ignoreJavascriptAdapters": {
+          "type": "checkbox",
+          "label": {
+            "en": "Exclude JavaScript instances (javascript.*)",
+            "de": "JavaScript-Instanzen ausschließen (javascript.*)"
+          },
+          "help": {
+            "en": "Prevents automated restarts of the JavaScript script engine to avoid interrupting running user automations",
+            "de": "Verhindert automatische Neustarts der JavaScript-Script-Engine, um laufende Skripte und Timer nicht zu unterbrechen"
+          },
+          "default": true,
+          "sm": 12,
+          "md": 4
+        },
         "dividerEmergency": {
           "type": "divider"
         },
         "headerEmergency": {
           "type": "header",
+          "size": 5,
           "text": {
             "en": "System OOM Emergency Protection (Free-RAM)",
             "de": "System-Notfall-Schutz bei akutem RAM-Mangel"
@@ -240,6 +258,7 @@
       "items": {
         "headerRules": {
           "type": "header",
+          "size": 5,
           "text": {
             "en": "Individual Adapter Configurations",
             "de": "Individuelle Adapter-Konfiguration"
@@ -322,6 +341,7 @@
       "items": {
         "headerNotify": {
           "type": "header",
+          "size": 5,
           "text": {
             "en": "Alerts on Action",
             "de": "Meldungen bei Eingriffen"
@@ -419,6 +439,7 @@
         },
         "headerQuiet": {
           "type": "header",
+          "size": 5,
           "text": {
             "en": "Quiet Hours / Night Mode",
             "de": "Ruhezeiten / Nachtmodus"
@@ -476,6 +497,7 @@
       "items": {
         "headerFlooding": {
           "type": "header",
+          "size": 5,
           "text": {
             "en": "State-Flooding & Message-Rate Monitor",
             "de": "State-Flooding & Bus-Überlastungs-Schutz"
@@ -542,6 +564,7 @@
         },
         "headerSilent": {
           "type": "header",
+          "size": 5,
           "text": {
             "en": "Silent Freeze & Unresponsive Adapter Detection",
             "de": "Scheintot-Erkennung (Eingefrorene Adapter)"
@@ -582,6 +605,7 @@
         },
         "headerStorage": {
           "type": "header",
+          "size": 5,
           "text": {
             "en": "Database (JSONL) & Log-Spam Protection",
             "de": "Datenbank (JSONL) & Log-Wachstums-Schutz"
@@ -644,6 +668,7 @@
         },
         "headerOrphans": {
           "type": "header",
+          "size": 5,
           "text": {
             "en": "Orphaned Process Detection",
             "de": "Verwaiste Kindprozesse (Orphans)"
