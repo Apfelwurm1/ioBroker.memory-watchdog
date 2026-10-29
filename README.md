@@ -94,6 +94,12 @@ In größeren ioBroker-Installationen mit vielen Adaptern führen schleichende S
 ---
 
 ## Changelog
+### 0.1.9 (2026-10-29)
+* (Apfelwurm1) Resilience: Preserve existing compact protection status on database read errors in `refreshCompactInfo`
+* (Apfelwurm1) Testing: Remove redundant `allowedExitCodes` option from integration test suite
+* (Apfelwurm1) Repo Compliance: Update `package.json` and `io-package.json` for ioBroker repository standards (Node >=22, admin >=7.6.20, keywords, workflow concurrency and Node 26 matrix)
+* (Apfelwurm1) Cleanliness: Remove orphaned JSDoc blocks and clean up state transitions
+
 ### 0.1.8 (2026-10-29)
 * (Apfelwurm1) Hysteresis: Require +25 MB recovery margin before resetting emergency RAM alerts to prevent boundary flapping
 * (Apfelwurm1) Compact: Require -25 MB recovery margin before resetting compact high-memory warning throttle

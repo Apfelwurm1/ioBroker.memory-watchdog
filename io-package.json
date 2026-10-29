@@ -1,8 +1,21 @@
 {
   "common": {
     "name": "memory-watchdog",
-    "version": "0.1.8",
+    "version": "0.1.9",
     "news": {
+      "0.1.9": {
+        "en": "Preserve compact protection during DB read errors, remove redundant allowedExitCodes, repository compliance updates and Node 22+ requirement",
+        "de": "Compact-Schutz bei DB-Lesefehlern absichern, ueberfluessige allowedExitCodes entfernt, Repository-Konformitaet und Node 22+ Anforderung",
+        "ru": "Сохранение защиты compact при ошибках чтения БД, удаление allowedExitCodes, соответствие репозиторию и требование Node 22+",
+        "pt": "Preservação da proteção compact em erros de leitura do BD, remoção de allowedExitCodes, conformidade com o repositório e Node 22+",
+        "nl": "Behoud van compact-beveiliging bij DB-leesfouten, overtollige allowedExitCodes verwijderd, repository-conformiteit en Node 22+",
+        "fr": "Préservation de la protection compact lors d'erreurs de lecture BD, suppression d'allowedExitCodes, conformité du dépôt et Node 22+",
+        "it": "Preservazione della protezione compact in caso di errori di lettura DB, rimozione di allowedExitCodes, conformità al repository e Node 22+",
+        "es": "Preservación de la protección compact en errores de lectura de BD, eliminación de allowedExitCodes, conformidad de repositorio y Node 22+",
+        "pl": "Ochrona trybu compact przy błędach odczytu bazy, usunięcie zbędnego allowedExitCodes, zgodność z repozytorium i Node 22+",
+        "uk": "Збереження захисту compact при помилках читання БД, видалення зайвих allowedExitCodes, відповідність репозиторію та Node 22+",
+        "zh-cn": "数据库读取错误期间保留紧凑保护、移除冗余的 allowedExitCodes、符合存储库规范并要求 Node 22+"
+      },
       "0.1.8": {
         "en": "Hysteresis recovery margins for emergency RAM and compact warnings, CI integration test workflow step, unified refreshCompactInfo helper, and reversible compact status",
         "de": "Hysterese-Erholungsband fuer Notfall-RAM und Compact-Warnungen, CI Integrationstest-Schritt, vereinheitlichte refreshCompactInfo Methode und ruecksetzbarer Compact-Status",
@@ -80,48 +93,8 @@
         "pl": "Automatyczna migracja limitu flood do 250 zdarzeń/s, recovery w onUnload, walidacja budżetu dziennego i zaawansowane maskowanie poświadczeń",
         "uk": "Автоматична міграція порогу флуду до 250 под/с, відновлення під час вимкнення, щоденна перевірка бюджету та розширене очищення облікових даних",
         "zh-cn": "自动将传统洪水阈值迁移至 250 ev/s、onUnload 关闭恢复、线程安全的待处理重启 Set 以及全面的凭据清理"
-      },
-      "0.1.2": {
-        "en": "Hotfix: Fix limitMB in dashboard JSON, single-target emergency RAM recovery, higher flood threshold, sync restart locks and crash-resilient pending restart recovery",
-        "de": "Hotfix: Korrektur von limitMB im Dashboard-JSON, Einzeltarget-Notfall-RAM-Freigabe, hoeherer Flood-Schwellwert, synchrone Restart-Sperre und absturzsichere Recovery",
-        "ru": "Hotfix: исправление limitMB в dashboard JSON, восстановление RAM, синхронная блокировка и устойчивость к сбоям",
-        "pt": "Hotfix: Correção de limitMB no dashboard JSON, recuperação de RAM direcionada, limites ajustados e bloqueios síncronos",
-        "nl": "Hotfix: Correctie van limitMB in dashboard-JSON, gericht RAM-noodherstel, synchronisatiesloten en crashbestendig herstel",
-        "fr": "Hotfix: Correction de limitMB dans le tableau de bord JSON, récupération d'urgence ciblée, verrous synchrones et résilience",
-        "it": "Hotfix: Correzione di limitMB nel dashboard JSON, ripristino RAM di emergenza mirato, blocchi sincroni e ripristino resiliente",
-        "es": "Hotfix: Corrección de limitMB en dashboard JSON, recuperación de RAM dirigida, bloqueos síncronos y recuperación ante fallos",
-        "pl": "Hotfix: Poprawka limitMB w JSON dashboardu, ukierunkowane odzyskiwanie RAM, blokady synchroniczne i odporność na awarie",
-        "uk": "Hotfix: Виправлення limitMB у JSON дашборду, цільове відновлення RAM, синхронні блокування та відновлення після збоїв",
-        "zh-cn": "热修复：修复仪表板 JSON 中的 limitMB、单目标紧急 RAM 恢复、同步重启锁定和抗崩溃恢复"
-      },
-      "0.1.1": {
-        "en": "Fix event-rate calculation, baseline learning on cold start, credential sanitization in process checks and robust restart handling",
-        "de": "Korrektur der Event-Raten-Berechnung, Baseline-Lernen nur bei Kaltstart, Passwort-Maskierung bei Prozess-Scans und abgesicherte Restarts",
-        "ru": "Исправление расчета скорости событий, изучение базового уровня при холодном запуске, очистка учетных данных и надежный перезапуск",
-        "pt": "Correção do cálculo da taxa de eventos, aprendizado de linha de base na inicialização a frio, higienização de credenciais e reinicialização robusta",
-        "nl": "Correctie van berekening van gebeurtenissnelheid, basislijnleren bij koude start, opschonen van inloggegevens en robuuste herstartverwerking",
-        "fr": "Correction du calcul du taux d'événements, apprentissage de la ligne de base au démarrage à froid, assainissement des identifiants et redémarrage robuste",
-        "it": "Correzione del calcolo del tasso di eventi, apprendimento della baseline all'avvio a freddo, sanificazione delle credenziali e riavvio robusto",
-        "es": "Corrección del cálculo de la tasa de eventos, aprendizaje de línea de base en inicio en frío, sanitización de credenciales y reinicio robusto",
-        "pl": "Korekta obliczania wskaźnika zdarzeń, uczenie się linii bazowej przy zimnym starcie, sanityzacja poświadczeń i solidne restartowanie",
-        "uk": "Виправлення розрахунку частоти подій, навчання базової лінії під час холодного запуску, очищення облікових даних та надійний перезапуск",
-        "zh-cn": "修复事件速率计算、冷启动基准学习、凭据清理和稳健的重启处理"
-      },
-      "0.1.0": {
-        "en": "Initial public release of Smart Memory Watchdog",
-        "de": "Erste Veröffentlichung des Smart Memory Watchdog",
-        "ru": "Первый публичный релиз Smart Memory Watchdog",
-        "pt": "Lançamento público inicial do Smart Memory Watchdog",
-        "nl": "Eerste openbare release van Smart Memory Watchdog",
-        "fr": "Première version publique de Smart Memory Watchdog",
-        "it": "Versione pubblica iniziale di Smart Memory Watchdog",
-        "es": "Lanzamiento público inicial de Smart Memory Watchdog",
-        "pl": "Pierwsze publiczne wydanie Smart Memory Watchdog",
-        "uk": "Перший публічний реліз Smart Memory Watchdog",
-        "zh-cn": "Smart Memory Watchdog 首次公开发布"
       }
     },
-    "title": "Smart Memory Watchdog",
     "titleLang": {
       "en": "Smart Memory Watchdog",
       "de": "Intelligenter Speicher-Wächter",
@@ -166,7 +139,6 @@
       "type": "free"
     },
     "platform": "Javascript/Node.js",
-    "main": "main.js",
     "icon": "memory-watchdog.png",
     "enabled": true,
     "extIcon": "https://raw.githubusercontent.com/Apfelwurm1/ioBroker.memory-watchdog/main/admin/memory-watchdog.png",
@@ -189,7 +161,7 @@
     ],
     "globalDependencies": [
       {
-        "admin": ">=6.12.0"
+        "admin": ">=7.6.20"
       }
     ]
   },

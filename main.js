@@ -409,13 +409,6 @@ class MemoryWatchdog extends utils.Adapter {
     }
 
     /**
-     * Creates or updates a monitored adapter entry, checking uptime for provisional status and compact mode
-     * @param {string} instanceId
-     * @param {number} mem
-     * @param {any} [custom=null]
-     * @returns {Promise<any>}
-     */
-    /**
      * Refreshes compact mode detection for an instance and updates state accordingly
      * @param {string} instanceId
      * @param {any} [data=null]
@@ -430,7 +423,8 @@ class MemoryWatchdog extends utils.Adapter {
             isCompact = isCompactMode(compactState ? compactState.val : null, instObj ? instObj.common : null);
             compactGroup = getCompactGroup(instObj ? instObj.common : null);
         } catch (ce) {
-            // Ignore object lookup error
+            // Ignore object lookup error - preserve existing status without modifying data on read error
+            return { isCompact: data?.isCompact ?? false, compactGroup: data?.compactGroup ?? 1 };
         }
 
         if (data) {
