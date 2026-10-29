@@ -94,6 +94,14 @@ In größeren ioBroker-Installationen mit vielen Adaptern führen schleichende S
 ---
 
 ## Changelog
+### 0.2.0 (2026-10-29)
+* (Apfelwurm1) **Clean baseline milestone release**: Consolidated all architectural features, leak algorithms, and baseline learners
+* (Apfelwurm1) Architecture: Removed legacy 0.1.x migration logic and streamlined startup pipeline
+* (Apfelwurm1) Compact Mode: Full protection for shared-process instances with authoritative state detection and reversible status
+* (Apfelwurm1) Resilience: Ownership verification (`obj.from`) for pending restarts and database read resilience
+* (Apfelwurm1) Hysteresis: +25 MB recovery margin on low-RAM emergency warnings and compact throttling to prevent alarm flapping
+* (Apfelwurm1) Repo Compliance: Validated with ioBroker repo-checker, Node >=22 requirement and automated CI integration tests
+
 ### 0.1.9 (2026-10-29)
 * (Apfelwurm1) Resilience: Preserve existing compact protection status on database read errors in `refreshCompactInfo`
 * (Apfelwurm1) Testing: Remove redundant `allowedExitCodes` option from integration test suite

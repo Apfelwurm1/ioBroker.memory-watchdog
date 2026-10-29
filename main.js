@@ -99,22 +99,7 @@ class MemoryWatchdog extends utils.Adapter {
             return;
         }
 
-        // 2. One-time auto-migration of legacy floodThreshold (50 -> 250) for pre-0.1.3 installations
-        if (!this.config.floodMigrated && this.config.floodThresholdEventsPerSec === 50) {
-            this.log.info('One-time migration: upgrading legacy floodThresholdEventsPerSec setting from 50 to 250 ev/s.');
-            this.config.floodThresholdEventsPerSec = 250;
-            this.config.floodMigrated = true;
-            try {
-                await this.extendForeignObjectAsync(`system.adapter.${this.namespace}`, {
-                    native: { floodThresholdEventsPerSec: 250, floodMigrated: true },
-                });
-                return; // Exit early: controller will restart the adapter with updated native configuration
-            } catch (e) {
-                this.log.debug(`Failed to auto-migrate floodThreshold: ${e}`);
-            }
-        }
-
-        // 3. Read system.config to get precise controller statistics interval
+        // 2. Read system.config to get precise controller statistics interval
         try {
             const sysConfig = await this.getForeignObjectAsync('system.config');
             if (sysConfig && sysConfig.common && typeof sysConfig.common.statisticsInterval === 'number') {
@@ -125,30 +110,30 @@ class MemoryWatchdog extends utils.Adapter {
             this.log.debug(`Could not read system.config statisticsInterval, defaulting to 15000ms: ${e}`);
         }
 
-        // 4. Restore persisted states and per-adapter budgets
+        // 3. Restore persisted states and per-adapter budgets
         await this.restorePersistedState();
 
-        // 5. Preload alive cache BEFORE subscribing to avoid spurious cold-start learning triggers on existing adapters
+        // 4. Preload alive cache BEFORE subscribing to avoid spurious cold-start learning triggers on existing adapters
         await this.preloadAliveCache();
 
-        // 6. Initialize scheduled midnight reset for daily restart budgets
+        // 5. Initialize scheduled midnight reset for daily restart budgets
         this.setupMidnightTimer();
 
-        // 7. Subscribe to adapter alive states
+        // 6. Subscribe to adapter alive states
         this.subscribeForeignStates('system.adapter.*.*.alive');
 
-        // 8. Initial scan of active adapters after 10 seconds grace period
+        // 7. Initial scan of active adapters after 10 seconds grace period
         this.setTimeout(() => {
             this.scanActiveAdapters().catch((err) => this.log.error(`Scan error: ${err}`));
         }, 10000);
 
-        // 9. Periodic memory & system health check
+        // 8. Periodic memory & system health check
         const intervalMs = Math.max(1, this.config.checkIntervalMin || 15) * 60 * 1000;
         this.checkTimer = this.setInterval(() => {
             this.checkMemory().catch((err) => this.log.error(`Periodic check error: ${err}`));
         }, intervalMs);
 
-        // 10. Record initial free memory & storage metrics
+        // 9. Record initial free memory & storage metrics
         const initialFree = this.getSystemFreeMemMB();
         await this.setStateAsync('info.systemFreeMemMB', initialFree, true);
         await this.checkStorageHealth();

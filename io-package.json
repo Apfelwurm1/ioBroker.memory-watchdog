@@ -1,98 +1,20 @@
 {
   "common": {
     "name": "memory-watchdog",
-    "version": "0.1.9",
+    "version": "0.2.0",
     "news": {
-      "0.1.9": {
-        "en": "Preserve compact protection during DB read errors, remove redundant allowedExitCodes, repository compliance updates and Node 22+ requirement",
-        "de": "Compact-Schutz bei DB-Lesefehlern absichern, ueberfluessige allowedExitCodes entfernt, Repository-Konformitaet und Node 22+ Anforderung",
-        "ru": "Сохранение защиты compact при ошибках чтения БД, удаление allowedExitCodes, соответствие репозиторию и требование Node 22+",
-        "pt": "Preservação da proteção compact em erros de leitura do BD, remoção de allowedExitCodes, conformidade com o repositório e Node 22+",
-        "nl": "Behoud van compact-beveiliging bij DB-leesfouten, overtollige allowedExitCodes verwijderd, repository-conformiteit en Node 22+",
-        "fr": "Préservation de la protection compact lors d'erreurs de lecture BD, suppression d'allowedExitCodes, conformité du dépôt et Node 22+",
-        "it": "Preservazione della protezione compact in caso di errori di lettura DB, rimozione di allowedExitCodes, conformità al repository e Node 22+",
-        "es": "Preservación de la protección compact en errores de lectura de BD, eliminación de allowedExitCodes, conformidad de repositorio y Node 22+",
-        "pl": "Ochrona trybu compact przy błędach odczytu bazy, usunięcie zbędnego allowedExitCodes, zgodność z repozytorium i Node 22+",
-        "uk": "Збереження захисту compact при помилках читання БД, видалення зайвих allowedExitCodes, відповідність репозиторію та Node 22+",
-        "zh-cn": "数据库读取错误期间保留紧凑保护、移除冗余的 allowedExitCodes、符合存储库规范并要求 Node 22+"
-      },
-      "0.1.8": {
-        "en": "Hysteresis recovery margins for emergency RAM and compact warnings, CI integration test workflow step, unified refreshCompactInfo helper, and reversible compact status",
-        "de": "Hysterese-Erholungsband fuer Notfall-RAM und Compact-Warnungen, CI Integrationstest-Schritt, vereinheitlichte refreshCompactInfo Methode und ruecksetzbarer Compact-Status",
-        "ru": "Полоса гистерезиса для предупреждений RAM и compact, шаг интеграционных тестов в CI, единый refreshCompactInfo",
-        "pt": "Margens de recuperação de histerese para RAM e avisos compactos, passo de teste de integração no CI, refreshCompactInfo unificado",
-        "nl": "Hysterese herstelmarge voor RAM en compact waarschuwingen, CI integratietest stap, uniforme refreshCompactInfo methode",
-        "fr": "Marge d'hystérésis pour les alertes RAM et compact, étape CI pour test d'intégration, méthode refreshCompactInfo unifiée",
-        "it": "Banda di isteresi per avvisi RAM e compact, step di test di integrazione in CI, metodo refreshCompactInfo unificato",
-        "es": "Banda de histéresis para alertas de RAM y compact, paso de prueba de integración en CI, método refreshCompactInfo unificado",
-        "pl": "Pasmo histerezy dla alertów RAM i compact, krok testów integracyjnych w CI, zunifikowana metoda refreshCompactInfo",
-        "uk": "Смуга гістерезису для попереджень RAM і compact, крок інтеграційних тестів у CI, уніфікований метод refreshCompactInfo",
-        "zh-cn": "紧急 RAM 和紧凑模式警报的滞后恢复裕度、CI 集成测试步骤、统一的 refreshCompactInfo 方法和可逆的紧凑状态"
-      },
-      "0.1.7": {
-        "en": "Authoritative compactMode state detection, preserve compactGroup 0, dynamic compact sync, reset emergency hysteresis upon RAM recovery, throttled compact warnings, pure helper modularization, integration test suite and Node 20+ requirement",
-        "de": "Massgebliche compactMode State-Pruefung, Erhalt von compactGroup 0, dynamischer Compact-Abgleich, Hysterese-Reset bei RAM-Erholung, gedrosselte Compact-Warnungen, ausgelagerte Hilfsfunktionen, Integrationstests und Node 20+ Anforderung",
-        "ru": "Авторитетная проверка compactMode, сохранение compactGroup 0, сброс гистерезиса при восстановлении RAM, тесты интеграции и требование Node 20+",
-        "pt": "Deteção autoritária de compactMode, preservação do grupo 0, redefinição da histerese na recuperação da RAM, testes de integração e requisito do Node 20+",
-        "nl": "Gaghebbende compactMode controle, behoud compactGroup 0, hysterese reset bij RAM herstel, integratietesten en Node 20+ vereiste",
-        "fr": "Vérification compactMode faisant autorité, conservation compactGroup 0, réinitialisation hystérésis lors de la récupération RAM, tests intégration et Node 20+",
-        "it": "Verifica compactMode autorevole, conservazione compactGroup 0, ripristino isteresi al recupero della RAM, test integrazione e requisito Node 20+",
-        "es": "Verificación compactMode autoritativa, preservación de compactGroup 0, restablecimiento histéresis al recuperar RAM, pruebas de integración y requisito Node 20+",
-        "pl": "Autorytatywna weryfikacja compactMode, zachowanie compactGroup 0, reset histerezy po odzyskaniu RAM, testy integracyjne i wymóg Node 20+",
-        "uk": "Авторитетна перевірка compactMode, збереження compactGroup 0, скидання гістерезису після відновлення RAM, інтеграційні тести та вимога Node 20+",
-        "zh-cn": "权威的 compactMode 状态检测、保留 compactGroup 0、动态紧凑模式同步、RAM 恢复时重置滞后、集成测试和 Node 20+ 要求"
-      },
-      "0.1.6": {
-        "en": "Detection of compact mode instances, pending restarts ownership validation with obj.from, low RAM alert hysteresis, configurable javascript exclusion and admin jsonConfig header fixes",
-        "de": "Erkennung von Compact-Mode-Instanzen, Ownership-Pruefung fuer pendingRestarts ueber obj.from, Notfall-Warnung Hysterese, konfigurierbarer JavaScript-Ausschluss und jsonConfig Header-Fixes",
-        "ru": "Обнаружение экземпляров компактного режима, проверка obj.from для pendingRestarts, гистерезис предупреждений RAM, настраиваемое исключение javascript",
-        "pt": "Deteção de instâncias em modo compacto, validação obj.from para pendingRestarts, histerese de alertas de RAM, exclusão configurável de javascript",
-        "nl": "Detectie van compacte modus instanties, obj.from validatie voor pendingRestarts, RAM waarschuwing hysterese, configureerbare javascript uitsluiting",
-        "fr": "Détection des instances en mode compact, validation obj.from pour pendingRestarts, hystérésis d'alerte RAM, exclusion javascript configurable",
-        "it": "Rilevamento istanze in modalità compatta, convalida obj.from per pendingRestarts, isteresi avviso RAM, esclusione javascript configurabile",
-        "es": "Detección de instancias en modo compacto, validación obj.from para pendingRestarts, histéresis de alerta de RAM, exclusión configurable de javascript",
-        "pl": "Wykrywanie instancji w trybie compact, walidacja obj.from dla pendingRestarts, histereza alertów RAM, konfigurowalne wykluczenie javascript",
-        "uk": "Виявлення екземплярів у компактному режимі, перевірка obj.from для pendingRestarts, гістерезис сповіщень RAM, настроюване виключення javascript",
-        "zh-cn": "检测紧凑模式实例、使用 obj.from 验证待处理重启所有权、低 RAM 警报滞后、可配置的 JavaScript 排除和 jsonConfig 修复"
-      },
-      "0.1.5": {
-        "en": "Timestamped pendingRestarts with 10m expiry check, initialize adapter states prior to memRss, enhanced passphrase and Bearer regex, and floodMigrated default true",
-        "de": "PendingRestarts mit Zeitstempel und 10m Ablaufpruefung, Initialisierung der Adapter-States vor memRss, erweiterte Passphrase/Bearer-Regex und floodMigrated Standard true",
-        "ru": "PendingRestarts с временными метками и проверкой 10м, инициализация состояний до memRss и улучшенное регулярное выражение",
-        "pt": "PendingRestarts com carimbo de data/hora e expiração de 10m, inicialização de estados antes do memRss e regex aprimorada",
-        "nl": "PendingRestarts met tijdstempel en 10m vervalcontrole, initialisatie van statussen vóór memRss en verbeterde regex",
-        "fr": "PendingRestarts avec horodatage et expiration 10m, initialisation des états avant memRss et regex améliorée",
-        "it": "PendingRestarts con timestamp e scadenza 10m, inizializzazione degli stati prima di memRss e regex migliorata",
-        "es": "PendingRestarts con marca de tiempo y expiración de 10m, inicialización de estados antes de memRss y regex mejorada",
-        "pl": "PendingRestarts ze znacznikiem czasu i wygasaniem 10m, inicjalizacja stanów przed memRss i ulepszony regex",
-        "uk": "PendingRestarts з міткою часу та перевіркою 10хв, ініціалізація станів до memRss та покращений регулярний вираз",
-        "zh-cn": "带时间戳的 pendingRestarts（带 10 分钟到期检查）、在 memRss 之前初始化适配器状态、增强的密码短语和 Bearer 正则表达式"
-      },
-      "0.1.4": {
-        "en": "Fix extendForeignObject in onUnload, fix credentials masking regex, track lastRestartTs persistently, one-time migration guard and unified baseline creation",
-        "de": "Korrektur von extendForeignObject in onUnload, fehlerfreie Passwort-Maskierung, persistenter lastRestartTs Zeitstempel, einmalige Migration und vereinheitlichte Baseline-Erzeugung",
-        "ru": "Исправление extendForeignObject в onUnload, маскировки паролей, сохранение lastRestartTs и единое создание базовых линий",
-        "pt": "Correção de extendForeignObject em onUnload, regex de credenciais, persistência de lastRestartTs e criação unificada de linha de base",
-        "nl": "Correctie van extendForeignObject in onUnload, opschoning van inloggegevens, persistente lastRestartTs en uniforme basislijncreatie",
-        "fr": "Correction d'extendForeignObject dans onUnload, regex des identifiants, persistance de lastRestartTs et création unifiée de ligne de base",
-        "it": "Correzione di extendForeignObject in onUnload, regex credenziali, persistenza di lastRestartTs e creazione unificata della baseline",
-        "es": "Corrección de extendForeignObject en onUnload, regex de credenciales, persistencia de lastRestartTs y creación unificada de línea de base",
-        "pl": "Poprawka extendForeignObject w onUnload, maskowanie poświadczeń, trwały lastRestartTs i jednolite tworzenie linii bazowej",
-        "uk": "Виправлення extendForeignObject в onUnload, маскування паролів, збереження lastRestartTs та єдине створення базових ліній",
-        "zh-cn": "修复 onUnload 中的 extendForeignObject、凭据掩码正则表达式、持久保存 lastRestartTs 以及统一的基准创建"
-      },
-      "0.1.3": {
-        "en": "Auto-migrate legacy flood threshold to 250 ev/s, shutdown recovery in onUnload, thread-safe pending restarts Set, budget daily validation and comprehensive credentials sanitization",
-        "de": "Automatische Migration des Flood-Limits auf 250 Ev/s, Shutdown-Recovery in onUnload, threadsicheres pendingRestarts Set, Datumspruefung des Tagesbudgets und umfassende Passwort-Maskierung",
-        "ru": "Автоматическая миграция порога флуда на 250 событий/с, восстановление при выключении, проверка ежедневного бюджета и надежная очистка учетных данных",
-        "pt": "Migração automática do limite de flood para 250 ev/s, recuperação no encerramento, validação do orçamento diário e higienização robusta de credenciais",
-        "nl": "Automatische migratie van flood-drempel naar 250 ev/s, shutdown-herstel in onUnload, thread-veilige pendingRestarts en robuuste opschoning van inloggegevens",
-        "fr": "Migration automatique du seuil de flood à 250 ev/s, récupération à l'arrêt, validation quotidienne du budget et assainissement complet des identifiants",
-        "it": "Migrazione automatica della soglia di flood a 250 ev/s, ripristino all'arresto in onUnload, set thread-safe e sanificazione avanzata delle credenziali",
-        "es": "Migración automática del umbral de flood a 250 ev/s, recuperación en onUnload, validación diaria de presupuesto y sanitización avanzada de credenciales",
-        "pl": "Automatyczna migracja limitu flood do 250 zdarzeń/s, recovery w onUnload, walidacja budżetu dziennego i zaawansowane maskowanie poświadczeń",
-        "uk": "Автоматична міграція порогу флуду до 250 под/с, відновлення під час вимкнення, щоденна перевірка бюджету та розширене очищення облікових даних",
-        "zh-cn": "自动将传统洪水阈值迁移至 250 ev/s、onUnload 关闭恢复、线程安全的待处理重启 Set 以及全面的凭据清理"
+      "0.2.0": {
+        "en": "Consolidated 0.2.0 release: Baseline learning, dynamic factor limits, compact mode protection, emergency RAM recovery with hysteresis, flood protection, and clean architecture without legacy migration logic",
+        "de": "Konsolidierte Version 0.2.0: Baseline-Lernen, dynamische Faktor-Grenzen, Compact-Mode-Schutz, Notfall-RAM-Freigabe mit Hysterese-Erholungsband, Flood-Schutz und bereinigte Architektur ohne Alt-Migrationen",
+        "ru": "Консолидированный релиз 0.2.0: обучение baseline, динамические лимиты, защита compact, аварийное освобождение RAM с гистерезисом, защита от флуда и чистая архитектура",
+        "pt": "Versão consolidada 0.2.0: Aprendizagem de baseline, limites dinâmicos, proteção compact, recuperação de RAM com histerese, proteção contra flood e arquitetura limpa",
+        "nl": "Geconsolideerde 0.2.0 release: Basislijnleren, dynamische factorlimieten, compacte modus bescherming, RAM-noodherstel met hysterese, flood-beveiliging en schone architectuur",
+        "fr": "Version consolidée 0.2.0 : Apprentissage de baseline, limites dynamiques, protection du mode compact, récupération d'urgence RAM avec hystérésis, protection contre les floods et architecture propre",
+        "it": "Versione consolidata 0.2.0: Apprendimento baseline, limiti dinamici, protezione modalità compatta, ripristino RAM di emergenza con isteresi, protezione flood e architettura pulita",
+        "es": "Versión consolidada 0.2.0: Aprendizaje de baseline, límites dinámicos, protección modo compacto, recuperación de emergencia RAM con histéresis, protección flood y arquitectura limpia",
+        "pl": "Skonsolidowane wydanie 0.2.0: Uczenie się linii bazowej, dynamiczne limity, ochrona trybu compact, awaryjne odzyskiwanie RAM z histerezą, ochrona przed floodem i czysta architektura",
+        "uk": "Консолідований реліз 0.2.0: Навчання baseline, динамічні ліміти, захист compact, аварійне звільнення RAM з гістерезисом, захист від флуду та чиста архітектура",
+        "zh-cn": "整合的 0.2.0 版本：基线学习、动态系数限制、紧凑模式保护、带滞后的紧急 RAM 恢复、洪水保护以及去除过时迁移逻辑的纯净架构"
       }
     },
     "titleLang": {
@@ -186,7 +108,6 @@
     "quietHoursEnd": "07:00",
     "floodDetectionEnabled": true,
     "floodThresholdEventsPerSec": 250,
-    "floodMigrated": true,
     "floodAction": "warn_only",
     "silentDetectionEnabled": false,
     "maxSilenceHours": 3,
@@ -200,7 +121,7 @@
         "adapter": "admin.0",
         "active": true,
         "customMaxMB": 600,
-        "customFactor": 3.0,
+        "customFactor": 3,
         "notes": "Web-Admin darf bei vielen offenen Browser-Tabs höher wachsen"
       }
     ],
