@@ -88,6 +88,14 @@ In größeren ioBroker-Installationen mit vielen Adaptern führen schleichende S
 ---
 
 ## Changelog
+### 0.1.5 (2026-10-29)
+* (Apfelwurm1) Safety: Timestamped info.pendingRestarts with 10-minute expiry window prevents unprompted re-enabling
+* (Apfelwurm1) Security: Extended credentials masking regex covering passphrase, credentials and preserving Bearer quotes
+* (Apfelwurm1) Stability: Pre-initialize adapter states before memRss verification during startup scans
+* (Apfelwurm1) Telemetry: Update dashboard stats directly following cold-start baseline learning
+* (Apfelwurm1) Config: Default floodMigrated to true for clean initial installations
+* (Apfelwurm1) Packaging: Set compact to false for dedicated process and memory inspection isolation
+
 ### 0.1.4 (2026-10-29)
 * (Apfelwurm1) Fix: Use extendForeignObject in onUnload for reliable process recovery during shutdown
 * (Apfelwurm1) Fix: Correct non-capturing groups in credentials sanitization regex to prevent double word artifacts

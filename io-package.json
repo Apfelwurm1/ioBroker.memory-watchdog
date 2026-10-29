@@ -1,8 +1,21 @@
 {
   "common": {
     "name": "memory-watchdog",
-    "version": "0.1.4",
+    "version": "0.1.5",
     "news": {
+      "0.1.5": {
+        "en": "Timestamped pendingRestarts with 10m expiry check, initialize adapter states prior to memRss, enhanced passphrase and Bearer regex, and floodMigrated default true",
+        "de": "PendingRestarts mit Zeitstempel und 10m Ablaufpruefung, Initialisierung der Adapter-States vor memRss, erweiterte Passphrase/Bearer-Regex und floodMigrated Standard true",
+        "ru": "PendingRestarts с временными метками и проверкой 10м, инициализация состояний до memRss и улучшенное регулярное выражение",
+        "pt": "PendingRestarts com carimbo de data/hora e expiração de 10m, inicialização de estados antes do memRss e regex aprimorada",
+        "nl": "PendingRestarts met tijdstempel en 10m vervalcontrole, initialisatie van statussen vóór memRss en verbeterde regex",
+        "fr": "PendingRestarts avec horodatage et expiration 10m, initialisation des états avant memRss et regex améliorée",
+        "it": "PendingRestarts con timestamp e scadenza 10m, inizializzazione degli stati prima di memRss e regex migliorata",
+        "es": "PendingRestarts con marca de tiempo y expiración de 10m, inicialización de estados antes de memRss y regex mejorada",
+        "pl": "PendingRestarts ze znacznikiem czasu i wygasaniem 10m, inicjalizacja stanów przed memRss i ulepszony regex",
+        "uk": "PendingRestarts з міткою часу та перевіркою 10хв, ініціалізація станів до memRss та покращений регулярний вираз",
+        "zh-cn": "带时间戳的 pendingRestarts（带 10 分钟到期检查）、在 memRss 之前初始化适配器状态、增强的密码短语和 Bearer 正则表达式"
+      },
       "0.1.4": {
         "en": "Fix extendForeignObject in onUnload, fix credentials masking regex, track lastRestartTs persistently, one-time migration guard and unified baseline creation",
         "de": "Korrektur von extendForeignObject in onUnload, fehlerfreie Passwort-Maskierung, persistenter lastRestartTs Zeitstempel, einmalige Migration und vereinheitlichte Baseline-Erzeugung",
@@ -123,7 +136,7 @@
     "mode": "daemon",
     "type": "utility",
     "tier": 1,
-    "compact": true,
+    "compact": false,
     "messagebox": true,
     "connectionType": "local",
     "dataSource": "poll",
@@ -161,7 +174,7 @@
     "quietHoursEnd": "07:00",
     "floodDetectionEnabled": true,
     "floodThresholdEventsPerSec": 250,
-    "floodMigrated": false,
+    "floodMigrated": true,
     "floodAction": "warn_only",
     "silentDetectionEnabled": false,
     "maxSilenceHours": 3,

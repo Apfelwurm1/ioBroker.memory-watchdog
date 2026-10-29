@@ -59,8 +59,8 @@ class MemoryWatchdog extends utils.Adapter {
         /** @type {Set<string>} Prevents concurrent overlapping restarts for the same instance */
         this.restarting = new Set();
 
-        /** @type {Set<string>} In-memory master set of pending restarts to eliminate race conditions */
-        this.pendingRestartsSet = new Set();
+        /** @type {Map<string, number>} In-memory master map of pending restarts (instanceId -> timestamp) */
+        this.pendingRestartsMap = new Map();
 
         /** @type {number} Statistics interval in ms from system.config (default 15000) */
         this.statisticsInterval = 15000;
@@ -83,7 +83,7 @@ class MemoryWatchdog extends utils.Adapter {
             return;
         }
 
-        // 2. One-time auto-migration of legacy floodThreshold (50 -> 250)
+        // 2. One-time auto-migration of legacy floodThreshold (50 -> 250) for pre-0.1.3 installations
         if (!this.config.floodMigrated && this.config.floodThresholdEventsPerSec === 50) {
             this.log.info('One-time migration: upgrading legacy floodThresholdEventsPerSec setting from 50 to 250 ev/s.');
             this.config.floodThresholdEventsPerSec = 250;
@@ -143,28 +143,48 @@ class MemoryWatchdog extends utils.Adapter {
     }
 
     /**
-     * Recovers adapters that were left disabled due to an abrupt shutdown during restart
+     * Recovers adapters that were left disabled due to an abrupt shutdown during restart.
+     * Only re-enables entries younger than 10 minutes to prevent overriding deliberate user disables.
      */
     async recoverPendingRestarts() {
         try {
             const state = await this.getStateAsync('info.pendingRestarts');
             if (state && typeof state.val === 'string' && state.val.length > 2) {
-                const pending = JSON.parse(state.val);
-                if (Array.isArray(pending) && pending.length > 0) {
-                    this.log.warn(
-                        `[Recovery] Found ${pending.length} adapter(s) left in pending-restart state: ${pending.join(', ')}. Restoring...`,
-                    );
-                    for (const instId of pending) {
-                        try {
-                            await this.extendForeignObjectAsync(`system.adapter.${instId}`, { common: { enabled: true } });
-                            this.log.info(`[Recovery] [${instId}] Re-enabled successfully.`);
-                        } catch (e) {
-                            this.log.error(`[Recovery] Failed to re-enable [${instId}]: ${e}`);
-                        }
+                let pending = [];
+                try {
+                    const parsed = JSON.parse(state.val);
+                    if (Array.isArray(parsed)) {
+                        pending = parsed.map((item) =>
+                            typeof item === 'string' ? { id: item, ts: Date.now() } : item,
+                        );
                     }
-                    this.pendingRestartsSet.clear();
-                    await this.setStateAsync('info.pendingRestarts', JSON.stringify([]), true);
+                } catch (e) {
+                    // Ignore parse error
                 }
+
+                const now = Date.now();
+                const maxAgeMs = 10 * 60 * 1000; // 10 minutes expiry window
+
+                for (const item of pending) {
+                    if (!item || !item.id) continue;
+                    const age = now - (item.ts || 0);
+                    if (age <= maxAgeMs) {
+                        try {
+                            await this.extendForeignObjectAsync(`system.adapter.${item.id}`, { common: { enabled: true } });
+                            this.log.info(
+                                `[Recovery] [${item.id}] Re-enabled successfully (pending age: ${Math.round(age / 1000)}s).`,
+                            );
+                        } catch (e) {
+                            this.log.error(`[Recovery] Failed to re-enable [${item.id}]: ${e}`);
+                        }
+                    } else {
+                        this.log.warn(
+                            `[Recovery] Expired pending restart for [${item.id}] (${Math.round(age / 60000)}m old > 10m). Skipping automatic re-enable.`,
+                        );
+                    }
+                }
+                this.pendingRestartsMap.clear();
+                await this.setStateAsync('info.pendingRestarts', JSON.stringify([]), true);
             }
         } catch (err) {
             this.log.error(`Error in recoverPendingRestarts: ${err}`);
@@ -172,26 +192,28 @@ class MemoryWatchdog extends utils.Adapter {
     }
 
     /**
-     * Marks an instance as pending restart in persistent state using in-memory Set
+     * Marks an instance as pending restart in persistent state using timestamped Map
      * @param {string} instanceId
      */
     async addPendingRestart(instanceId) {
         try {
-            this.pendingRestartsSet.add(instanceId);
-            await this.setStateAsync('info.pendingRestarts', JSON.stringify([...this.pendingRestartsSet]), true);
+            this.pendingRestartsMap.set(instanceId, Date.now());
+            const serialized = Array.from(this.pendingRestartsMap.entries()).map(([id, ts]) => ({ id, ts }));
+            await this.setStateAsync('info.pendingRestarts', JSON.stringify(serialized), true);
         } catch (e) {
             // Ignore state write errors
         }
     }
 
     /**
-     * Clears an instance from pending restart in persistent state using in-memory Set
+     * Clears an instance from pending restart in persistent state
      * @param {string} instanceId
      */
     async removePendingRestart(instanceId) {
         try {
-            this.pendingRestartsSet.delete(instanceId);
-            await this.setStateAsync('info.pendingRestarts', JSON.stringify([...this.pendingRestartsSet]), true);
+            this.pendingRestartsMap.delete(instanceId);
+            const serialized = Array.from(this.pendingRestartsMap.entries()).map(([id, ts]) => ({ id, ts }));
+            await this.setStateAsync('info.pendingRestarts', JSON.stringify(serialized), true);
         } catch (e) {
             // Ignore state write errors
         }
@@ -238,7 +260,7 @@ class MemoryWatchdog extends utils.Adapter {
             if (states) {
                 for (const [id, state] of Object.entries(states)) {
                     if (!state || state.val === null) continue;
-                    const match = id.match(/adapters\.(.+?)\.(restartsToday|lastRestartTs)/);
+                    const match = id.match(/adapters\.(.+?)\.(restartsToday|lastRestartTs)$/);
                     if (match) {
                         const inst = match[1];
                         const field = match[2];
@@ -426,6 +448,8 @@ class MemoryWatchdog extends utils.Adapter {
                 }
 
                 count++;
+                // Unconditionally ensure state datapoints exist under adapters.<instanceId>.*
+                await this.initAdapterStates(instanceId);
 
                 // Fetch current memRss if available
                 const memState = await this.getForeignStateAsync(`system.adapter.${instanceId}.memRss`);
@@ -1217,8 +1241,8 @@ class MemoryWatchdog extends utils.Adapter {
                                 await this.setStateAsync(`adapters.${instanceId}.highCycles`, 0, true);
                                 await this.setStateAsync(`adapters.${instanceId}.status`, 'ok', true);
                                 this.log.info(`[${instanceId}] Learned fresh baseline memory after cold start: ${mem} MB`);
-                                await this.updateStatsDatapoint();
                             }
+                            await this.updateStatsDatapoint();
                         }
                     } catch (learnErr) {
                         this.log.error(`Error learning baseline for [${instanceId}]: ${learnErr}`);
@@ -1314,8 +1338,8 @@ class MemoryWatchdog extends utils.Adapter {
             this.verificationTimers.clear();
 
             // Emergency Recovery: Immediately re-enable all pending adapters before shutting down
-            if (this.pendingRestartsSet.size > 0) {
-                for (const instanceId of this.pendingRestartsSet) {
+            if (this.pendingRestartsMap.size > 0) {
+                for (const instanceId of this.pendingRestartsMap.keys()) {
                     try {
                         this.extendForeignObject(`system.adapter.${instanceId}`, { common: { enabled: true } }, () => {});
                         this.log.info(`[Shutdown Recovery] Sent re-enable request for [${instanceId}] during watchdog shutdown.`);
@@ -1323,7 +1347,7 @@ class MemoryWatchdog extends utils.Adapter {
                         // Ignore error
                     }
                 }
-                // Intentionally do NOT clear this.pendingRestartsSet from persistent state so recoverPendingRestarts on next boot acts as safety net!
+                // Intentionally do NOT clear this.pendingRestartsMap from persistent state so recoverPendingRestarts on next boot acts as safety net!
             }
 
             this.restarting.clear();

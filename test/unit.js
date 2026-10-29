@@ -27,14 +27,19 @@ describe('Helper unit tests', () => {
             expect(sanitizeProcessArgs(input)).to.equal('node srv --apiKey=***');
         });
 
+        it('should correctly mask passphrase and credentials flags', () => {
+            expect(sanitizeProcessArgs('x --passphrase secret')).to.equal('x --passphrase ***');
+            expect(sanitizeProcessArgs('x --credentials=secret')).to.equal('x --credentials=***');
+        });
+
         it('should correctly mask RTSP stream credentials in URLs', () => {
             const input = 'ffmpeg -i rtsp://admin:secret123@192.168.1.50:554/ch0';
             expect(sanitizeProcessArgs(input)).to.equal('ffmpeg -i rtsp://***@192.168.1.50:554/ch0');
         });
 
-        it('should correctly mask Bearer authorization tokens', () => {
-            const input = 'curl -H "Authorization: Bearer my-secret-jwt-token" http://localhost';
-            expect(sanitizeProcessArgs(input)).to.equal('curl -H "Authorization: Bearer *** http://localhost');
+        it('should correctly mask Bearer authorization tokens preserving quotes', () => {
+            const input = 'curl ... "Authorization: Bearer my-secret-jwt-token" http';
+            expect(sanitizeProcessArgs(input)).to.equal('curl ... "Authorization: Bearer ***" http');
         });
 
         it('should correctly mask environment variables with underscore like MQTT_PASS', () => {
