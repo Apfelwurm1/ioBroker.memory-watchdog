@@ -1,6 +1,6 @@
 {
   "name": "iobroker.memory-watchdog",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "Smart memory watchdog, baseline learner, and leak prevention for ioBroker adapter instances",
   "author": "Apfelwurm1",
   "homepage": "https://github.com/Apfelwurm1/ioBroker.memory-watchdog",

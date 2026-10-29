@@ -88,6 +88,13 @@ In größeren ioBroker-Installationen mit vielen Adaptern führen schleichende S
 ---
 
 ## Changelog
+### 0.1.4 (2026-10-29)
+* (Apfelwurm1) Fix: Use extendForeignObject in onUnload for reliable process recovery during shutdown
+* (Apfelwurm1) Fix: Correct non-capturing groups in credentials sanitization regex to prevent double word artifacts
+* (Apfelwurm1) Fix: Add floodMigrated flag to prevent re-triggering migration if user deliberately chooses 50 ev/s
+* (Apfelwurm1) State: Save lastRestartTs timestamp persistently in state for cooldown tracking across watchdog restarts
+* (Apfelwurm1) Architecture: Modularize pure helpers into lib/helpers.js and add automated Mocha unit test suite
+
 ### 0.1.3 (2026-10-28)
 * (Apfelwurm1) Auto-migrate legacy flood threshold from 50 to 250 ev/s on existing instances
 * (Apfelwurm1) Robustness: Immediate shutdown recovery in onUnload for all pending adapters

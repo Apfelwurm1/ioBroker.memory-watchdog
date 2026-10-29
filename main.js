@@ -9,27 +9,7 @@ const path = require('path');
 const os = require('os');
 const { execFile } = require('child_process');
 const utils = require('@iobroker/adapter-core');
-
-/**
- * Escapes characters for Telegram Markdown format
- * @param {string} text
- * @returns {string}
- */
-function escapeTelegramMarkdown(text) {
-    return text.replace(/[_*[\]()~`>#+\-=|{}.!\\]/g, '\\$&');
-}
-
-/**
- * Checks if a timestamp belongs to today
- * @param {number} ts
- * @returns {boolean}
- */
-function isFromToday(ts) {
-    if (!ts) return false;
-    const d = new Date(ts);
-    const now = new Date();
-    return d.getDate() === now.getDate() && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-}
+const { escapeTelegramMarkdown, sanitizeProcessArgs, isFromToday } = require('./lib/helpers.js');
 
 class MemoryWatchdog extends utils.Adapter {
     /**
@@ -103,14 +83,16 @@ class MemoryWatchdog extends utils.Adapter {
             return;
         }
 
-        // 2. Auto-migrate legacy floodThreshold (50 -> 250) for existing instances
-        if (this.config.floodThresholdEventsPerSec === 50) {
-            this.log.info('Auto-migrating legacy floodThresholdEventsPerSec setting from 50 to 250 ev/s.');
+        // 2. One-time auto-migration of legacy floodThreshold (50 -> 250)
+        if (!this.config.floodMigrated && this.config.floodThresholdEventsPerSec === 50) {
+            this.log.info('One-time migration: upgrading legacy floodThresholdEventsPerSec setting from 50 to 250 ev/s.');
             this.config.floodThresholdEventsPerSec = 250;
+            this.config.floodMigrated = true;
             try {
                 await this.extendForeignObjectAsync(`system.adapter.${this.namespace}`, {
-                    native: { floodThresholdEventsPerSec: 250 },
+                    native: { floodThresholdEventsPerSec: 250, floodMigrated: true },
                 });
+                return; // Exit early: controller will restart the adapter with updated native configuration
             } catch (e) {
                 this.log.debug(`Failed to auto-migrate floodThreshold: ${e}`);
             }
@@ -256,7 +238,7 @@ class MemoryWatchdog extends utils.Adapter {
             if (states) {
                 for (const [id, state] of Object.entries(states)) {
                     if (!state || state.val === null) continue;
-                    const match = id.match(/adapters\.(.+?)\.(restartsToday|lastRestart)/);
+                    const match = id.match(/adapters\.(.+?)\.(restartsToday|lastRestartTs)/);
                     if (match) {
                         const inst = match[1];
                         const field = match[2];
@@ -277,6 +259,24 @@ class MemoryWatchdog extends utils.Adapter {
                                     this.adapterData.set(inst, entry);
                                 } else {
                                     entry.restartsToday = Number(state.val) || 0;
+                                }
+                            }
+                        } else if (field === 'lastRestartTs') {
+                            const tsVal = Number(state.val) || 0;
+                            if (tsVal > 0) {
+                                if (!entry) {
+                                    entry = {
+                                        startRss: 0,
+                                        startedAt: Date.now(),
+                                        lastRestart: tsVal,
+                                        highCycles: 0,
+                                        floodCycles: 0,
+                                        restartsToday: 0,
+                                        currentMem: 0,
+                                    };
+                                    this.adapterData.set(inst, entry);
+                                } else {
+                                    entry.lastRestart = tsVal;
                                 }
                             }
                         }
@@ -352,6 +352,54 @@ class MemoryWatchdog extends utils.Adapter {
     }
 
     /**
+     * Creates or updates a monitored adapter entry, checking uptime for provisional status
+     * @param {string} instanceId
+     * @param {number} mem
+     * @param {any} [custom=null]
+     * @returns {Promise<any>}
+     */
+    async createAdapterEntry(instanceId, mem, custom = null) {
+        let isProvisional = false;
+        try {
+            const uptimeState = await this.getForeignStateAsync(`system.adapter.${instanceId}.uptime`);
+            if (uptimeState && typeof uptimeState.val === 'number' && uptimeState.val > 1800) {
+                isProvisional = true;
+            }
+        } catch (ue) {
+            // Ignore uptime fetch error
+        }
+
+        const existing = this.adapterData.get(instanceId);
+        const data = {
+            startRss: mem,
+            startedAt: Date.now(),
+            lastRestart: existing ? existing.lastRestart : 0,
+            highCycles: 0,
+            floodCycles: 0,
+            restartsToday: existing ? existing.restartsToday : 0,
+            currentMem: mem,
+            lastOutputTs: Date.now(),
+            baselineProvisional: isProvisional,
+            customConfig: custom || this.getCustomRule(instanceId),
+        };
+        this.adapterData.set(instanceId, data);
+        await this.initAdapterStates(instanceId);
+        await this.setStateAsync(`adapters.${instanceId}.baselineMB`, mem, true);
+        await this.setStateAsync(`adapters.${instanceId}.currentMB`, mem, true);
+        await this.setStateAsync(`adapters.${instanceId}.ratio`, 1.0, true);
+        await this.setStateAsync(`adapters.${instanceId}.status`, 'ok', true);
+
+        if (isProvisional) {
+            this.log.info(
+                `[${instanceId}] Initialized provisional baseline: ${mem} MB (Adapter already running >30m; factor checks deferred until next cold start).`,
+            );
+        } else {
+            this.log.info(`[${instanceId}] Initialized fresh baseline memory: ${mem} MB`);
+        }
+        return data;
+    }
+
+    /**
      * Scans all currently running adapters in the system
      */
     async scanActiveAdapters() {
@@ -378,51 +426,14 @@ class MemoryWatchdog extends utils.Adapter {
                 }
 
                 count++;
-                await this.initAdapterStates(instanceId);
 
                 // Fetch current memRss if available
                 const memState = await this.getForeignStateAsync(`system.adapter.${instanceId}.memRss`);
                 if (memState && memState.val && typeof memState.val === 'number' && memState.val > 0) {
                     const mem = Math.round(memState.val);
-                    let data = this.adapterData.get(instanceId);
-
-                    // Check adapter uptime to verify if baseline is fresh or provisional
-                    let isProvisional = false;
-                    try {
-                        const uptimeState = await this.getForeignStateAsync(`system.adapter.${instanceId}.uptime`);
-                        if (uptimeState && typeof uptimeState.val === 'number' && uptimeState.val > 1800) {
-                            isProvisional = true;
-                        }
-                    } catch (ue) {
-                        // Ignore uptime fetch error
-                    }
-
+                    const data = this.adapterData.get(instanceId);
                     if (!data || data.startRss === 0) {
-                        data = {
-                            startRss: mem,
-                            startedAt: Date.now(),
-                            lastRestart: 0,
-                            highCycles: 0,
-                            floodCycles: 0,
-                            restartsToday: data ? data.restartsToday : 0,
-                            currentMem: mem,
-                            lastOutputTs: Date.now(),
-                            baselineProvisional: isProvisional,
-                            customConfig: custom,
-                        };
-                        this.adapterData.set(instanceId, data);
-                        await this.setStateAsync(`adapters.${instanceId}.baselineMB`, mem, true);
-                        await this.setStateAsync(`adapters.${instanceId}.currentMB`, mem, true);
-                        await this.setStateAsync(`adapters.${instanceId}.ratio`, 1.0, true);
-                        await this.setStateAsync(`adapters.${instanceId}.status`, 'ok', true);
-
-                        if (isProvisional) {
-                            this.log.info(
-                                `[${instanceId}] Initialized provisional baseline: ${mem} MB (Adapter already running >30m; factor checks deferred until next cold start).`,
-                            );
-                        } else {
-                            this.log.info(`[${instanceId}] Initialized fresh baseline memory: ${mem} MB`);
-                        }
+                        await this.createAdapterEntry(instanceId, mem, custom);
                     }
                 }
             }
@@ -456,6 +467,7 @@ class MemoryWatchdog extends utils.Adapter {
             { id: 'restartsToday', name: 'Restarts Triggered Today', type: 'number', role: 'value', def: 0 },
             { id: 'status', name: 'Status', type: 'string', role: 'text', def: 'ok' },
             { id: 'lastRestart', name: 'Timestamp of Last Restart', type: 'string', role: 'text', def: '' },
+            { id: 'lastRestartTs', name: 'Timestamp of Last Restart (ms)', type: 'number', role: 'value.time', def: 0 },
         ];
 
         for (const s of stateDefs) {
@@ -613,14 +625,7 @@ class MemoryWatchdog extends utils.Adapter {
                         }
 
                         // Robustly sanitize URLs and parameters containing credentials
-                        const sanitizedArgs = rawArgs
-                            .replace(/\/\/[^@/]+@/g, '//***@')
-                            .replace(
-                                /\b(pass(word|wd)?|pwd|token|secret|api[-_]?key|auth)\b(["']?\s*[:=]\s*|\s+)("[^"]*"|'[^']*'|[^\s&,]+)/gi,
-                                '$1$2***',
-                            )
-                            .slice(0, 100);
-
+                        const sanitizedArgs = sanitizeProcessArgs(rawArgs);
                         orphans.push({ pid, ppid, comm, args: sanitizedArgs });
                     }
                 }
@@ -876,20 +881,7 @@ class MemoryWatchdog extends utils.Adapter {
                 const currentMem = Math.round(memState.val);
 
                 if (!data || !data.startRss || data.startRss <= 0) {
-                    data = {
-                        startRss: currentMem,
-                        startedAt: Date.now(),
-                        lastRestart: 0,
-                        highCycles: 0,
-                        floodCycles: 0,
-                        restartsToday: data ? data.restartsToday : 0,
-                        currentMem: currentMem,
-                        lastOutputTs: now,
-                        customConfig: custom,
-                    };
-                    this.adapterData.set(instanceId, data);
-                    await this.initAdapterStates(instanceId);
-                    await this.setStateAsync(`adapters.${instanceId}.baselineMB`, currentMem, true);
+                    data = await this.createAdapterEntry(instanceId, currentMem, custom);
                     continue;
                 }
 
@@ -1034,6 +1026,7 @@ class MemoryWatchdog extends utils.Adapter {
         await this.setStateAsync(`adapters.${instanceId}.highCycles`, 0, true);
         await this.setStateAsync(`adapters.${instanceId}.restartsToday`, restartCountToday, true);
         await this.setStateAsync(`adapters.${instanceId}.lastRestart`, timeStr, true);
+        await this.setStateAsync(`adapters.${instanceId}.lastRestartTs`, data.lastRestart, true);
         await this.setStateAsync(`adapters.${instanceId}.status`, 'restarting', true);
 
         await this.setStateAsync('info.lastAction', `Restarted ${instanceId} (${reason})`, true);
@@ -1208,18 +1201,7 @@ class MemoryWatchdog extends utils.Adapter {
                             const mem = Math.round(memState.val);
                             let data = this.adapterData.get(instanceId);
                             if (!data) {
-                                data = {
-                                    startRss: mem,
-                                    startedAt: Date.now(),
-                                    lastRestart: 0,
-                                    highCycles: 0,
-                                    floodCycles: 0,
-                                    restartsToday: 0,
-                                    currentMem: mem,
-                                    lastOutputTs: Date.now(),
-                                    baselineProvisional: false,
-                                };
-                                this.adapterData.set(instanceId, data);
+                                await this.createAdapterEntry(instanceId, mem);
                             } else {
                                 data.startRss = mem;
                                 data.startedAt = Date.now();
@@ -1227,16 +1209,16 @@ class MemoryWatchdog extends utils.Adapter {
                                 data.floodCycles = 0;
                                 data.baselineProvisional = false;
                                 data.lastOutputTs = Date.now();
-                            }
 
-                            await this.initAdapterStates(instanceId);
-                            await this.setStateAsync(`adapters.${instanceId}.baselineMB`, mem, true);
-                            await this.setStateAsync(`adapters.${instanceId}.currentMB`, mem, true);
-                            await this.setStateAsync(`adapters.${instanceId}.ratio`, 1.0, true);
-                            await this.setStateAsync(`adapters.${instanceId}.highCycles`, 0, true);
-                            await this.setStateAsync(`adapters.${instanceId}.status`, 'ok', true);
-                            this.log.info(`[${instanceId}] Learned fresh baseline memory after cold start: ${mem} MB`);
-                            await this.updateStatsDatapoint();
+                                await this.initAdapterStates(instanceId);
+                                await this.setStateAsync(`adapters.${instanceId}.baselineMB`, mem, true);
+                                await this.setStateAsync(`adapters.${instanceId}.currentMB`, mem, true);
+                                await this.setStateAsync(`adapters.${instanceId}.ratio`, 1.0, true);
+                                await this.setStateAsync(`adapters.${instanceId}.highCycles`, 0, true);
+                                await this.setStateAsync(`adapters.${instanceId}.status`, 'ok', true);
+                                this.log.info(`[${instanceId}] Learned fresh baseline memory after cold start: ${mem} MB`);
+                                await this.updateStatsDatapoint();
+                            }
                         }
                     } catch (learnErr) {
                         this.log.error(`Error learning baseline for [${instanceId}]: ${learnErr}`);
@@ -1335,13 +1317,13 @@ class MemoryWatchdog extends utils.Adapter {
             if (this.pendingRestartsSet.size > 0) {
                 for (const instanceId of this.pendingRestartsSet) {
                     try {
-                        this.setForeignObject(`system.adapter.${instanceId}`, { common: { enabled: true } });
-                        this.log.info(`[Shutdown Recovery] Re-enabled [${instanceId}] during watchdog shutdown.`);
+                        this.extendForeignObject(`system.adapter.${instanceId}`, { common: { enabled: true } }, () => {});
+                        this.log.info(`[Shutdown Recovery] Sent re-enable request for [${instanceId}] during watchdog shutdown.`);
                     } catch (e) {
                         // Ignore error
                     }
                 }
-                this.pendingRestartsSet.clear();
+                // Intentionally do NOT clear this.pendingRestartsSet from persistent state so recoverPendingRestarts on next boot acts as safety net!
             }
 
             this.restarting.clear();

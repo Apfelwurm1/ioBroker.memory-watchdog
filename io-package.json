@@ -1,8 +1,21 @@
 {
   "common": {
     "name": "memory-watchdog",
-    "version": "0.1.3",
+    "version": "0.1.4",
     "news": {
+      "0.1.4": {
+        "en": "Fix extendForeignObject in onUnload, fix credentials masking regex, track lastRestartTs persistently, one-time migration guard and unified baseline creation",
+        "de": "Korrektur von extendForeignObject in onUnload, fehlerfreie Passwort-Maskierung, persistenter lastRestartTs Zeitstempel, einmalige Migration und vereinheitlichte Baseline-Erzeugung",
+        "ru": "Исправление extendForeignObject в onUnload, маскировки паролей, сохранение lastRestartTs и единое создание базовых линий",
+        "pt": "Correção de extendForeignObject em onUnload, regex de credenciais, persistência de lastRestartTs e criação unificada de linha de base",
+        "nl": "Correctie van extendForeignObject in onUnload, opschoning van inloggegevens, persistente lastRestartTs en uniforme basislijncreatie",
+        "fr": "Correction d'extendForeignObject dans onUnload, regex des identifiants, persistance de lastRestartTs et création unifiée de ligne de base",
+        "it": "Correzione di extendForeignObject in onUnload, regex credenziali, persistenza di lastRestartTs e creazione unificata della baseline",
+        "es": "Corrección de extendForeignObject en onUnload, regex de credenciales, persistencia de lastRestartTs y creación unificada de línea de base",
+        "pl": "Poprawka extendForeignObject w onUnload, maskowanie poświadczeń, trwały lastRestartTs i jednolite tworzenie linii bazowej",
+        "uk": "Виправлення extendForeignObject в onUnload, маскування паролів, збереження lastRestartTs та єдине створення базових ліній",
+        "zh-cn": "修复 onUnload 中的 extendForeignObject、凭据掩码正则表达式、持久保存 lastRestartTs 以及统一的基准创建"
+      },
       "0.1.3": {
         "en": "Auto-migrate legacy flood threshold to 250 ev/s, shutdown recovery in onUnload, thread-safe pending restarts Set, budget daily validation and comprehensive credentials sanitization",
         "de": "Automatische Migration des Flood-Limits auf 250 Ev/s, Shutdown-Recovery in onUnload, threadsicheres pendingRestarts Set, Datumspruefung des Tagesbudgets und umfassende Passwort-Maskierung",
@@ -148,6 +161,7 @@
     "quietHoursEnd": "07:00",
     "floodDetectionEnabled": true,
     "floodThresholdEventsPerSec": 250,
+    "floodMigrated": false,
     "floodAction": "warn_only",
     "silentDetectionEnabled": false,
     "maxSilenceHours": 3,
